@@ -32,6 +32,7 @@ class CustomWebhookSender:
         self._custom_webhook_bearer_token = getattr(config, 'custom_webhook_bearer_token', None)
         self._custom_webhook_body_template = getattr(config, 'custom_webhook_body_template', None)
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
+        self._dingtalk_webhook_keyword = getattr(config, 'dingtalk_webhook_keyword', None)
  
     def send_to_custom(self, content: str) -> bool:
         """
@@ -175,11 +176,14 @@ class CustomWebhookSender:
         
         # 钉钉机器人
         if 'dingtalk' in url_lower or 'oapi.dingtalk.com' in url_lower:
+            text = content
+            if self._dingtalk_webhook_keyword:
+                text = f"{self._dingtalk_webhook_keyword}\n\n{content}"
             return {
                 "msgtype": "markdown",
                 "markdown": {
                     "title": "股票分析报告",
-                    "text": content
+                    "text": text
                 }
             }
         
@@ -257,11 +261,14 @@ class CustomWebhookSender:
 
         for idx, chunk in enumerate(chunks):
             marker = f"\n\n📄 *({idx+1}/{total})*" if total > 1 else ""
+            text = chunk + marker
+            if self._dingtalk_webhook_keyword:
+                text = f"{self._dingtalk_webhook_keyword}\n\n{text}"
             payload = {
                 "msgtype": "markdown",
                 "markdown": {
                     "title": "股票分析报告",
-                    "text": chunk + marker,
+                    "text": text,
                 },
             }
 

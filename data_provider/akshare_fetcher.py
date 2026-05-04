@@ -1806,6 +1806,64 @@ class AkshareFetcher(BaseFetcher):
             return None
 
 
+    def get_limit_up_pool(self, date: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        """
+        获取涨停池数据（含连板数、所属行业）
+
+        Args:
+            date: 日期字符串 'YYYYMMDD'，默认最近交易日（自动回退最多3个交易日）
+
+        Returns:
+            list of dict: [{'code', 'name', 'consecutive', 'industry', 'first_time', 'change_pct', 'turnover', 'limit_reason'}, ...]
+            失败返回 None
+        """
+        import akshare as ak
+        from datetime import datetime as _dt, timedelta as _td
+        try:
+            self._set_random_user_agent()
+            self._enforce_rate_limit()
+
+            # 尝试最近3个自然日，假期自动回退
+            base_date = date or _dt.now().strftime('%Y%m%d')
+            attempts = [(_dt.strptime(base_date, '%Y%m%d') - _td(days=i)).strftime('%Y%m%d') for i in range(3)]
+            for attempt_date in attempts:
+                try:
+                    df = ak.stock_zt_pool_em(date=attempt_date)
+                    if df is not None and not df.empty:
+                        if attempt_date != (date or _dt.now().strftime('%Y%m%d')):
+                            logger.info(f"[涨停池] 回退到 {attempt_date} 获取成功")
+                        break
+                except Exception:
+                    continue
+            else:
+                logger.info("[涨停池] 近3日均无涨停数据")
+                return []
+
+            if df is None or df.empty:
+                logger.info("[涨停池] 今日无涨停数据")
+                return []
+
+            results = []
+            for _, row in df.iterrows():
+                results.append({
+                    'code': str(row.get('代码', '')),
+                    'name': str(row.get('名称', '')),
+                    'consecutive': int(row.get('连板数', 1)),
+                    'industry': str(row.get('所属行业', '')),
+                    'first_time': str(row.get('首次封板时间', '')),
+                    'change_pct': safe_float(row.get('涨跌幅', 0)),
+                    'turnover': safe_float(row.get('换手率', 0)),
+                    'limit_reason': str(row.get('涨停原因', '')),
+                })
+
+            logger.info(f"[涨停池] 获取成功: {len(results)} 只涨停股")
+            return results
+
+        except Exception as e:
+            logger.warning(f"[涨停池] 获取失败: {e}")
+            return None
+
+
 if __name__ == "__main__":
     # 测试代码
     logging.basicConfig(level=logging.DEBUG)

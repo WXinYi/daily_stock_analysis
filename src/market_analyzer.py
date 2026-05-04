@@ -93,6 +93,26 @@ class MarketOverview:
     bottom_sectors: List[Dict] = field(default_factory=list)  # 跌幅前5板块
 
 
+@dataclass
+class LimitUpStock:
+    """涨停股信息"""
+    code: str
+    name: str
+    consecutive: int = 1           # 连板数（1=首板, 2=2连板...）
+    industry: str = ""             # 所属行业
+    first_time: str = ""           # 首次封板时间
+
+
+@dataclass
+class LimitUpLadder:
+    """连板天梯数据"""
+    total: int = 0                          # 涨停总数
+    consecutive_stats: Dict[int, int] = field(default_factory=dict)  # {板数: 数量}
+    height_leaders: List[LimitUpStock] = field(default_factory=list)  # 高度板龙头（3板+）
+    industry_ladders: List[Dict] = field(default_factory=list)  # 行业天梯 [{sector, stocks_by_board: {板数: [股票]}, total}]
+    concept_ladders: List[Dict] = field(default_factory=list)   # 概念天梯
+
+
 class MarketAnalyzer:
     """
     大盘复盘分析器
@@ -398,10 +418,190 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     #                 overview.north_flow = float(latest['净流入']) / 1e8
     #                 
     #             logger.info(f"[大盘] 北向资金净流入: {overview.north_flow:.2f}亿")
-    #             
+    #
     #     except Exception as e:
     #         logger.warning(f"[大盘] 获取北向资金失败: {e}")
-    
+
+    def _build_limit_up_ladder(self) -> Optional[LimitUpLadder]:
+        """获取涨停池数据并构建连板天梯（行业+概念双维度）。"""
+        try:
+            logger.info("[大盘] 获取涨停池连板数据...")
+
+            # 从 AkShare 获取涨停池
+            from data_provider.akshare_fetcher import AkshareFetcher
+            akshare = AkshareFetcher()
+            pool = akshare.get_limit_up_pool()
+
+            if pool is None:
+                logger.warning("[连板] 涨停池接口失败")
+                return None
+            if not pool:
+                logger.info("[连板] 今日无涨停数据")
+                return LimitUpLadder(total=0)
+
+            # 构建股票列表
+            stocks = []
+            for item in pool:
+                stock = LimitUpStock(
+                    code=str(item.get('code', '')),
+                    name=str(item.get('name', '')),
+                    consecutive=int(item.get('consecutive', 1)),
+                    industry=str(item.get('industry', '')),
+                    first_time=str(item.get('first_time', '')),
+                )
+                stocks.append(stock)
+
+            # 连板梯度统计
+            from collections import Counter
+            consec_dist = Counter(s.consecutive for s in stocks)
+            consecutive_stats = {}
+            for k in sorted(consec_dist):
+                consecutive_stats[k] = consec_dist[k]
+
+            # 高度板龙头（3连板及以上，按连板数降序）
+            height_leaders = sorted(
+                [s for s in stocks if s.consecutive >= 3],
+                key=lambda s: s.consecutive, reverse=True
+            )[:10]
+
+            # ---- 行业天梯 ----
+            industry_map = {}  # {sector_name: {consecutive: [LimitUpStock]}}
+            for s in stocks:
+                ind = s.industry or "其他"
+                if ind not in industry_map:
+                    industry_map[ind] = {}
+                industry_map[ind].setdefault(s.consecutive, []).append(s)
+
+            industry_ladders = []
+            for sector, by_board in industry_map.items():
+                total_in_sector = sum(len(v) for v in by_board.values())
+                industry_ladders.append({
+                    'sector': sector,
+                    'total': total_in_sector,
+                    'stocks_by_board': dict(sorted(by_board.items(), key=lambda x: x[0], reverse=True)),
+                })
+            # 按涨停数量降序，取 Top 5
+            industry_ladders.sort(key=lambda x: x['total'], reverse=True)
+            industry_ladders = industry_ladders[:5]
+
+            result = LimitUpLadder(
+                total=len(stocks),
+                consecutive_stats=consecutive_stats,
+                height_leaders=height_leaders,
+                industry_ladders=industry_ladders,
+                concept_ladders=[],
+            )
+            logger.info(f"[连板] 天梯构建完成: {len(stocks)}只, {len(height_leaders)}只高度板, "
+                       f"{len(industry_ladders)}个行业板块")
+            return result
+
+        except Exception as e:
+            logger.warning(f"[连板] 构建天梯失败: {e}")
+            return None
+
+    def _format_limit_up_section(self, ladeder: LimitUpLadder) -> str:
+        """生成连板情绪 + 天梯 Markdown 文本，注入到复盘报告。"""
+        if ladeder is None:
+            return "\n### 连板情绪\n今日涨停数据暂不可用。\n"
+        if ladeder.total == 0:
+            return "\n### 连板情绪\n今日无涨停数据。\n"
+
+        lines = ["\n### 连板情绪\n"]
+
+        # 梯度统计
+        parts = []
+        for k in sorted(ladeder.consecutive_stats.keys(), reverse=True):
+            cnt = ladeder.consecutive_stats[k]
+            if k == 1:
+                label = "首板"
+            elif k >= 5:
+                label = f"{k}板及以上"
+            else:
+                label = f"{k}连板"
+            parts.append(f"{label}{cnt}只")
+        lines.append(f"今日涨停{ladeder.total}只，" + "、".join(parts) + "。")
+
+        # 高度板龙头
+        if ladeder.height_leaders:
+            leaders_str = "、".join(f"{s.name}({s.consecutive}连板)" for s in ladeder.height_leaders[:5])
+            lines.append(f"高度板龙头：{leaders_str}。")
+
+        # 情绪判断
+        if ladeder.height_leaders and ladeder.height_leaders[0].consecutive >= 5:
+            lines.append("短线情绪强势，赚钱效应扩散。")
+        elif ladeder.height_leaders and ladeder.height_leaders[0].consecutive >= 3:
+            lines.append("短线情绪偏暖，连板梯队完整。")
+        else:
+            lines.append("短线情绪偏弱，连板高度有限。")
+
+        # 天梯（涨停<10家跳过）
+        if ladeder.total < 10:
+            lines.append("\n*涨停数不足10家，跳过连板天梯明细。*")
+            return "\n".join(lines) + "\n"
+
+        # ---- 行业天梯 ----
+        if ladeder.industry_ladders:
+            lines.append("\n### 连板天梯 · 行业板块\n")
+            for ladder in ladeder.industry_ladders:
+                lines.append(f"**{ladder['sector']}**（涨停{ladder['total']}只）\n")
+                for board, stock_list in sorted(ladder['stocks_by_board'].items(), key=lambda x: x[0], reverse=True):
+                    if board == 1:
+                        label = "首板"
+                    else:
+                        label = f"{board}板"
+                    names = "、".join(s.name for s in stock_list[:5])
+                    if len(stock_list) > 5:
+                        names += f"等{len(stock_list)}只"
+                    lines.append(f"  - {label}: {names}\n")
+
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _build_limit_up_prompt_block(ladder: Optional[LimitUpLadder]) -> str:
+        """构建 Prompt 中的连板数据块（供 LLM 分析参考）。"""
+        if ladder is None:
+            return ""
+        if ladder.total == 0:
+            return ""
+        lines = ["## 连板数据"]
+        # 梯度概览
+        parts = []
+        for k in sorted(ladder.consecutive_stats.keys(), reverse=True):
+            cnt = ladder.consecutive_stats[k]
+            label = f"{k}连板" if k > 1 else "首板"
+            parts.append(f"{label}{cnt}只")
+        lines.append("- 涨停" + "，".join(parts))
+        if ladder.height_leaders:
+            lines.append("- 高度板: " + "、".join(
+                f"{s.name}({s.consecutive}板)" for s in ladder.height_leaders[:5]))
+        # 行业分布
+        if ladder.industry_ladders:
+            ind_parts = []
+            for il in ladder.industry_ladders[:5]:
+                top_board = max(il['stocks_by_board'].keys())
+                ind_parts.append(f"{il['sector']}({il['total']}只/最高{top_board}板)")
+            lines.append("- 涨停集中行业: " + "；".join(ind_parts))
+        lines.append("")
+        return "\n".join(lines) + "\n"
+
+    def _inject_limit_up_section(self, review: str, limit_up_section: str) -> str:
+        """将连板天梯段落注入到四、资金与情绪段之后。"""
+        import re
+        # 匹配 "### 四、资金与情绪" 或 "### 四、资金与情绪\n..."
+        pattern = r"(### 四、资金与情绪.*?)(?=\n### 五|\n### \S|\Z)"
+        match = re.search(pattern, review, re.DOTALL)
+        if match:
+            idx = match.end()
+            # 找到该段落后下一个 ## 或 ### 标题之前插入
+            next_heading = re.search(r"\n###?\s", review[idx:])
+            if next_heading:
+                insert_pos = idx + next_heading.start()
+            else:
+                insert_pos = len(review)
+            return review[:insert_pos] + "\n" + limit_up_section + "\n" + review[insert_pos:]
+        # 没找到资金与情绪段，直接追加到末尾
+        return review + "\n" + limit_up_section + "\n"
+
     def search_market_news(self) -> List[Dict]:
         """
         搜索市场新闻
@@ -456,10 +656,20 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if not self.analyzer or not self.analyzer.is_available():
             logger.warning("[大盘] AI分析器未配置或不可用，使用模板生成报告")
             return self._generate_template_review(overview, news)
-        
+
+        # 获取连板天梯数据
+        limit_up_ladder = None
+        limit_up_section = ""
+        try:
+            limit_up_ladder = self._build_limit_up_ladder()
+            if limit_up_ladder is not None:
+                limit_up_section = self._format_limit_up_section(limit_up_ladder)
+        except Exception as e:
+            logger.warning(f"[大盘] 连板数据获取失败，跳过: {e}")
+
         # 构建 Prompt
-        prompt = self._build_review_prompt(overview, news)
-        
+        prompt = self._build_review_prompt(overview, news, limit_up_ladder)
+
         logger.info("[大盘] 调用大模型生成复盘报告...")
         # Use the public generate_text() entry point — never access private analyzer attributes.
         review = self.analyzer.generate_text(prompt, max_tokens=8192, temperature=0.7)
@@ -467,7 +677,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if review:
             logger.info("[大盘] 复盘报告生成成功，长度: %d 字符", len(review))
             # Inject structured data tables into LLM prose sections
-            return self._inject_data_into_review(review, overview, news)
+            review = self._inject_data_into_review(review, overview, news)
+            # 注入连板天梯到资金与情绪段之后
+            if limit_up_section:
+                review = self._inject_limit_up_section(review, limit_up_section)
+            return review
         else:
             logger.warning("[大盘] 大模型返回为空，使用模板报告")
             return self._generate_template_review(overview, news)
@@ -829,7 +1043,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 label = "偏弱"
         return score, label
 
-    def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
+    def _build_review_prompt(self, overview: MarketOverview, news: List, limit_up_ladder: Optional[LimitUpLadder] = None) -> str:
         """构建复盘报告 Prompt"""
         review_language = self._get_review_language()
 
@@ -931,6 +1145,8 @@ Lagging: {bottom_sectors_text if bottom_sectors_text else "N/A"}"""
 
 {sector_block}
 
+{self._build_limit_up_prompt_block(limit_up_ladder)}
+
 ## Market News
 {news_placeholder}
 
@@ -995,6 +1211,8 @@ Output the report content directly, no extra commentary.
 
 {sector_block}
 
+{self._build_limit_up_prompt_block(limit_up_ladder)}
+
 ## 市场新闻
 {news_placeholder}
 
@@ -1020,7 +1238,7 @@ Output the report content directly, no extra commentary.
 （分析领涨/领跌板块背后的逻辑、持续性和是否形成主线）
 
 ### 四、资金与情绪
-（解读成交额、涨跌停结构、市场宽度和风险偏好）
+（解读成交额、涨跌停结构、连板梯度、市场宽度和风险偏好）
 
 ### 五、消息催化
 （结合近三日新闻，提炼真正影响明日交易的催化或扰动）

@@ -506,7 +506,7 @@ def save_dragon_picks_for_backtest(dragons: List[FlyingDragon], filepath: str = 
 
 
 def build_dragon_backtest_section(filepath: str = "data/dragon_picks_today.json") -> str:
-    """读取今早飞龙选股，对比市场收盘数据生成回测段。"""
+    """读取今早飞龙选股，对比市场收盘数据生成回测段。仅查询飞龙候选股，秒级完成。"""
     if not os.path.exists(filepath):
         return ""
 
@@ -519,50 +519,64 @@ def build_dragon_backtest_section(filepath: str = "data/dragon_picks_today.json"
         buf = ["\n### 今日飞龙回测\n"]
         buf.append("今早推的飞龙表现：\n")
 
+        # 批量从腾讯财经获取实时行情（一次一只，但只查飞龙候选，7-8只秒级）
+        import requests as _requests
         hit = 0
         total_pnl = 0.0
-        from data_provider.akshare_fetcher import AkshareFetcher
-        fetcher = AkshareFetcher()
+
+        codes_tx = []
+        for p in picks:
+            code = p['code']
+            if code.startswith('6'):
+                codes_tx.append(f'sh{code}')
+            else:
+                codes_tx.append(f'sz{code}')
+
+        # 批量查询腾讯行情
+        tx_codes = ','.join(codes_tx)
+        url = f'http://qt.gtimg.cn/q={tx_codes}'
+        resp = _requests.get(url, timeout=10)
+        resp.encoding = 'gbk'
+        raw_lines = resp.text.strip().split('\n')
+        quote_map = {}
+        for line in raw_lines:
+            if '~' not in line:
+                continue
+            parts = line.split('~')
+            if len(parts) < 35:
+                continue
+            tx_code = parts[2]
+            tc = tx_code[2:] if len(tx_code) > 2 else tx_code
+            quote_map[tc] = {
+                'name': parts[1],
+                'price': float(parts[3]) if parts[3] else 0,
+                'change_pct': float(parts[32]) if parts[32] else 0,
+            }
 
         for p in picks:
             code = p['code']
             name = p['name']
             morning_price = p.get('close_price', 0)
-            try:
-                quote = fetcher.get_realtime_quote(code)
-                if quote and quote.price:
-                    close_p = quote.price
-                    change = quote.change_pct or 0
-                    if morning_price > 0:
-                        day_change = (close_p - morning_price) / morning_price * 100
-                    else:
-                        day_change = change
+            q = quote_map.get(code)
+            if q and q['price'] and q['price'] > 0:
+                close_p = q['price']
+                day_change = q['change_pct'] if morning_price == 0 else (close_p - morning_price) / morning_price * 100
 
-                    # 判定
-                    if day_change > 5:
-                        status = "✅"
-                        hit += 1
-                        advice = "强势，明天关注加速"
-                    elif day_change > 0:
-                        status = "✅"
-                        hit += 1
-                        advice = "收涨，持有观察"
-                    elif day_change > -3:
-                        status = "⚠️"
-                        advice = "小幅回调，明天减仓"
-                    else:
-                        status = "❌"
-                        advice = "大幅回落，明天清仓"
-
-                    buf.append(
-                        f"  {status} {name}({code}) → {close_p:.2f}({day_change:+.1f}%)"
-                        f" — {advice}\n"
-                    )
-                    total_pnl += day_change
+                if day_change > 5:
+                    status, advice = "✅", "强势，明天关注加速"
+                elif day_change > 0:
+                    status, advice = "✅", "收涨，持有观察"
+                elif day_change > -3:
+                    status, advice = "⚠️", "小幅回调，明天减仓"
                 else:
-                    buf.append(f"  ⚪ {name}({code}) — 数据暂不可用\n")
-            except Exception:
-                buf.append(f"  ⚪ {name}({code}) — 获取失败\n")
+                    status, advice = "❌", "大幅回落，明天清仓"
+
+                if day_change > 0:
+                    hit += 1
+                buf.append(f"  {status} {name}({code}) → {close_p:.2f}({day_change:+.1f}%) — {advice}\n")
+                total_pnl += day_change
+            else:
+                buf.append(f"  ⚪ {name}({code}) — 数据暂不可用\n")
 
         if len(picks) > 0:
             avg_pnl = total_pnl / len(picks)

@@ -598,9 +598,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 insert_pos = idx + next_heading.start()
             else:
                 insert_pos = len(review)
-            return review[:insert_pos] + "\n" + limit_up_section + "\n" + review[insert_pos:]
+            return review[:insert_pos] + "\n\n---\n\n" + limit_up_section + "\n" + review[insert_pos:]
         # 没找到资金与情绪段，直接追加到末尾
-        return review + "\n" + limit_up_section + "\n"
+        return review + "\n\n---\n\n" + limit_up_section + "\n"
 
     def search_market_news(self) -> List[Dict]:
         """
@@ -750,8 +750,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         else:
             # No next heading — append at end
             insert_pos = len(text)
-        # Insert the block before the next heading, with spacing
-        return text[:insert_pos].rstrip() + '\n\n' + block + '\n\n' + text[insert_pos:].lstrip('\n')
+        # Insert the block before the next heading, with spacing and visual separator
+        return text[:insert_pos].rstrip() + '\n\n---\n\n' + block + '\n\n' + text[insert_pos:].lstrip('\n')
 
     def _build_stats_block(self, overview: MarketOverview) -> str:
         """Build market statistics block."""
@@ -782,8 +782,6 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             f"> **大盘红绿灯**：{light['status']}（{light['label']}） | **{score}/100** {self._build_temperature_bar(score)}",
             f"> **核心原因**：{'；'.join(light['reasons'])}",
             f"> **操作建议**：{light['guidance']}",
-            "",
-            f"> **盘面温度**：{label} **{score}/100** {self._build_temperature_bar(score)}",
             "",
             "| 指标 | 数值 | 观察 |",
             "|------|------|------|",
@@ -888,7 +886,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "|------|------|--------|------|------|------|------|-----------|",
             ]
         for idx in overview.indices:
-            arrow = "🔴" if idx.change_pct < 0 else "🟢" if idx.change_pct > 0 else "⚪"
+            arrow = "🔴" if idx.change_pct > 0 else "🟢" if idx.change_pct < 0 else "⚪"
             amount_raw = idx.amount or 0.0
             amount_str = self._format_turnover_value(amount_raw)
             lines.append(
@@ -942,21 +940,13 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return "\n".join(lines)
 
     def _build_news_block(self, news: List) -> str:
-        """Build a compact news catalyst table for the rendered report."""
+        """Build a compact news catalyst list (no table — wraps naturally in DingTalk)."""
         if not news:
             return ""
         if self._get_review_language() == "en":
-            lines = [
-                "#### News Catalysts",
-                "| # | Headline | Signal |",
-                "|---|----------|--------|",
-            ]
+            lines = ["#### News Catalysts"]
         else:
-            lines = [
-                "#### 近三日催化线索",
-                "| 序号 | 事件/标题 | 关注点 |",
-                "|------|-----------|--------|",
-            ]
+            lines = ["#### 近三日催化线索"]
 
         for idx, item in enumerate(news[:5], 1):
             if hasattr(item, "title"):
@@ -965,9 +955,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             else:
                 title = item.get("title", "-") or "-"
                 snippet = item.get("snippet", "") or ""
-            title = self._escape_table_cell(str(title).strip()[:42])
-            signal = self._escape_table_cell(str(snippet).strip().replace("\n", " ")[:58] or "-")
-            lines.append(f"| {idx} | {title} | {signal} |")
+            title = str(title).strip()[:60]
+            snippet = str(snippet).strip().replace("\n", " ")[:120] or "-"
+            lines.append(f"{idx}. **{title}** — {snippet}")
         return "\n".join(lines)
 
     @staticmethod
@@ -1222,35 +1212,39 @@ Output the report content directly, no extra commentary.
 
 ---
 
-# 输出格式模板（请严格按此格式输出）
+# 输出格式模板（请严格按此格式输出，每条指引都要有对应内容）
 
 ## {overview.date} 大盘复盘
 
-> 一句话给出今日市场状态、核心矛盾和明日优先观察方向。
+> 一句话定调：今日市场状态 + 核心矛盾 + 明日最需关注的一个变量。
 
 ### 一、盘面总览
-（2-3句话概括指数、涨跌家数、成交额和情绪温度，明确“强势/偏暖/震荡/偏弱”判断）
+（2-3句：指数方向、涨跌结构、量能水平，明确给出”强势/偏暖/震荡/偏弱”定性）
 
 ### 二、指数结构
-（{self._get_index_hint()}，说明谁在护盘、谁在拖累，以及关键支撑/压力）
+（{self._get_index_hint()}，点明谁护盘谁拖累，给出具体支撑位/压力位数字）
 
 ### 三、板块主线
-（分析领涨/领跌板块背后的逻辑、持续性和是否形成主线）
+（领涨方向+驱动逻辑+持续性评估；领跌方向+扩散风险。必须明确回答：有主线吗？主线是谁？）
 
 ### 四、资金与情绪
-（解读成交额、涨跌停结构、连板梯度、市场宽度和风险偏好）
+（量能信号、涨跌停结构、高标股状态，给情绪定性：亢奋/偏暖/中性/降温/恐慌）
 
 ### 五、消息催化
-（结合近三日新闻，提炼真正影响明日交易的催化或扰动）
+（只列对明日交易有实质影响的催化，无实质影响则写”今日无重大催化”）
 
 ### 六、明日交易计划
-（给出进攻/均衡/防守结论、仓位区间、关注方向、回避方向和一个触发失效条件）
+- **结论**：进攻/均衡/防守，一句话理由
+- **仓位**：建议几成仓
+- **关注**：2-3个方向
+- **回避**：1-2个方向
+- **失效条件**：触发什么信号则立即转防守
 
 ### 七、风险提示
-（列出需要关注的风险点；最后补充”建议仅供参考，不构成投资建议”。）
+（2-3条具体风险，最后一行：”建议仅供参考，不构成投资建议。”）
 
 ### 八、策略总结
-（结合今日盘面，总结1-2条策略优化建议和关键教训，例如：”高潮次日不追高”、”冰点期底部反转优于突破追涨”。简洁，每条≤20字。）
+（今日1条核心教训 + 1条可操作优化建议，每条≤20字，精炼不废话）
 
 ---
 

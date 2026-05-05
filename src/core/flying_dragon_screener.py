@@ -546,7 +546,7 @@ def build_dragon_backtest_section(filepath: str = "data/dragon_picks_today.json"
             if len(parts) < 35:
                 continue
             tx_code = parts[2]
-            tc = tx_code[2:] if len(tx_code) > 2 else tx_code
+            tc = tx_code  # parts[2] 已经是纯数字代码，无需去前缀
             quote_map[tc] = {
                 'name': parts[1],
                 'price': float(parts[3]) if parts[3] else 0,

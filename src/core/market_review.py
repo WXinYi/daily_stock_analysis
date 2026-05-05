@@ -122,7 +122,7 @@ def run_market_review(
                 from src.core.flying_dragon_screener import build_dragon_backtest_section
                 backtest = build_dragon_backtest_section()
                 if backtest:
-                    review_report += "\n" + backtest
+                    review_report += "\n\n---\n\n" + backtest
             except Exception as e:
                 logger.warning(f"飞龙回测注入失败: {e}")
 

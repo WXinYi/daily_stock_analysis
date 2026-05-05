@@ -1027,6 +1027,9 @@ def main() -> int:
             report = build_flying_dragon_report(
                 guard_result, mainline_sectors, dragons, analyzer, emotion_cycle
             )
+            # 保存选股结果供下午复盘回测
+            from src.core.flying_dragon_screener import save_dragon_picks_for_backtest
+            save_dragon_picks_for_backtest(dragons)
 
             # 推送
             if report:

@@ -11,7 +11,9 @@ Pipeline:
   Phase 6: 持仓跟踪
 """
 
+import json
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timedelta
@@ -413,61 +415,164 @@ def build_flying_dragon_report(
     analyzer,
     emotion_cycle: str = "",
 ) -> str:
-    """Phase 5: 构建飞龙选股报告(LLM确认)"""
-    today = datetime.now().strftime('%Y-%m-%d')
-
-    buf = [f"## 飞龙在天 · 早盘选股\n",
-           f"**{today}**",
-           f" | 情绪: **{emotion_cycle}**\n" if emotion_cycle else "\n"]
+    """Phase 5: 构建飞龙选股报告（交易员早盘风格）"""
+    today = datetime.now().strftime('%m-%d')
 
     if not guard_result.passed:
-        buf.append("\n*安检不通过（{}），今日不筛飞龙，建议空仓/轻仓等待。*\n".format(
-            ', '.join(guard_result.failed_items)))
+        return f"## 飞龙在天 · {today}\n安检不通过（{', '.join(guard_result.failed_items)}），今日不筛飞龙，空仓/轻仓。\n"
+
+    # 核心矛盾推断
+    max_consec = max((d.consecutive for d in dragons), default=0)
+    total_dragons = len(dragons)
+    if max_consec >= 4:
+        tension = "龙头加速，关注分歧换手"
+    elif max_consec >= 3:
+        tension = "梯队完整，寻找回踩切入点"
+    elif total_dragons <= 2:
+        tension = "飞龙稀少，耐心等待信号"
+    else:
+        tension = "分散轮动，聚焦量价最优"
+
+    risk_hints = [f for f in guard_result.failed_items]
+    if guard_result.score < 80:
+        risk_hints.append(f"安检仅{guard_result.score}分")
+
+    buf = [
+        f"## 飞龙在天 · {today}",
+        f"情绪: **{emotion_cycle}** | 飞龙: **{total_dragons}**只 | {tension}",
+        "",
+    ]
+
+    if not dragons:
+        buf.append("无满足四大条件的飞龙，等待更好信号。\n")
         return "\n".join(buf)
 
-    # --- 飞龙候选段 ---
-    if dragons:
-        # 按入场线分组
-        running = [d for d in dragons if d.entry_line == '运行中']
-        line1 = [d for d in dragons if d.entry_line == '一号线']
-        line2 = [d for d in dragons if d.entry_line == '二号线']
-        line3 = [d for d in dragons if d.entry_line == '三号线']
+    # 按优先级排序：连板>板块排名>量比
+    sorted_dragons = sorted(dragons, key=lambda d: (d.consecutive, -d.sector_rank, -d.volume_ratio), reverse=True)
 
-        for line_name, line_dragons in [
-            ('运行中(持股)', running),
-            ('一号线(激进)', line1),
-            ('二号线(稳健)', line2),
-            ('三号线(二波)', line3),
-        ]:
-            if not line_dragons:
-                continue
-            buf.append(f"\n### 飞龙候选 · {line_name}\n")
-            for d in line_dragons[:5]:
-                buf.append(f"\n**{d.name}**({d.code}) | {d.industry}")
-                buf.append(f"\n- {d.consecutive}连板 | 均线{d.ma_alignment} | MA5:{d.ma5:.1f} MA10:{d.ma10:.1f} MA20:{d.ma20:.1f}")
-                buf.append(f"\n- 量比:{d.volume_ratio:.1f}x | 板块排名:{d.sector_rank}")
-                buf.append(f"\n- 入场: {d.entry_signal}")
-                buf.append(f"\n- 建议仓位: {d.suggested_position}")
-                buf.append("")
-    else:
-        buf.append("\n### 飞龙候选\n无满足四大条件的飞龙，等待更好信号。\n")
+    # Top 2 重点关注
+    top2 = sorted_dragons[:2]
+    buf.append("**今日关注：**")
+    for i, d in enumerate(top2):
+        label = ["①", "②"][i]
+        ma5_target = d.ma5 * 1.02 if d.close_price > d.ma5 * 1.05 else d.ma5
+        buf.append(
+            f"  {label} **{d.name}**({d.code}) — {d.consecutive}连板·{d.industry}龙{'头' if d.sector_rank<=2 else '二'}"
+            f" | 偏离MA5 {abs(d.close_price/d.ma5*100-100):.0f}%"
+            f" | {'等回踩5日线≈{:.0f}元'.format(d.ma5) if d.close_price > d.ma5*1.03 else '回踩企稳中'}"
+        )
 
+    # 其余等回踩观察
+    rest = sorted_dragons[2:6]
+    if rest:
+        buf.append("")
+        buf.append("**等回踩观察：**")
+        for i, d in enumerate(rest):
+            label = ["③", "④", "⑤", "⑥"][i]
+            buf.append(
+                f"  {label} {d.name}({d.code}) — {d.consecutive}连板·{d.industry}"
+                f" | 量比{d.volume_ratio:.1f}x | {d.entry_signal}"
+            )
+
+    # 仓位与风险
+    risk_str = "、".join(risk_hints) if risk_hints else "暂无显著风险"
+    buf.append("")
+    buf.append(f"仓位: 试错期3-4成 | 风险: {risk_str}")
     buf.append(f"\n*飞龙在天战法选股，仅供参考，不构成投资建议。*\n")
 
-    report = "\n".join(buf)
+    return "\n".join(buf)
 
-    # --- LLM确认（如有analyzer）---
-    if analyzer and analyzer.is_available() and (dragons or mainline_sectors):
-        try:
-            prompt = _build_llm_confirm_prompt(report, mainline_sectors, dragons)
-            llm_result = analyzer.generate_text(prompt, max_tokens=2048, temperature=0.3)
-            if llm_result:
-                # 把LLM确认附加到报告后面
-                report += f"\n---\n### LLM确认\n{llm_result}\n"
-        except Exception as e:
-            logger.warning(f"飞龙LLM确认失败: {e}")
 
-    return report
+def save_dragon_picks_for_backtest(dragons: List[FlyingDragon], filepath: str = "data/dragon_picks_today.json"):
+    """保存今日飞龙选股结果，供复盘回测使用。"""
+    try:
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        picks = []
+        for d in dragons:
+            picks.append({
+                'code': d.code,
+                'name': d.name,
+                'consecutive': d.consecutive,
+                'industry': d.industry,
+                'close_price': d.close_price,
+                'entry_line': d.entry_line,
+                'date': datetime.now().strftime('%Y-%m-%d'),
+            })
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(picks, f, ensure_ascii=False, indent=2)
+        logger.info(f"飞龙选股已保存: {filepath} ({len(picks)}只)")
+    except Exception as e:
+        logger.warning(f"飞龙选股保存失败: {e}")
+
+
+def build_dragon_backtest_section(filepath: str = "data/dragon_picks_today.json") -> str:
+    """读取今早飞龙选股，对比市场收盘数据生成回测段。"""
+    if not os.path.exists(filepath):
+        return ""
+
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            picks = json.load(f)
+        if not picks:
+            return ""
+
+        buf = ["\n### 今日飞龙回测\n"]
+        buf.append("今早推的飞龙表现：\n")
+
+        hit = 0
+        total_pnl = 0.0
+        from data_provider.akshare_fetcher import AkshareFetcher
+        fetcher = AkshareFetcher()
+
+        for p in picks:
+            code = p['code']
+            name = p['name']
+            morning_price = p.get('close_price', 0)
+            try:
+                quote = fetcher.get_realtime_quote(code)
+                if quote and quote.price:
+                    close_p = quote.price
+                    change = quote.change_pct or 0
+                    if morning_price > 0:
+                        day_change = (close_p - morning_price) / morning_price * 100
+                    else:
+                        day_change = change
+
+                    # 判定
+                    if day_change > 5:
+                        status = "✅"
+                        hit += 1
+                        advice = "强势，明天关注加速"
+                    elif day_change > 0:
+                        status = "✅"
+                        hit += 1
+                        advice = "收涨，持有观察"
+                    elif day_change > -3:
+                        status = "⚠️"
+                        advice = "小幅回调，明天减仓"
+                    else:
+                        status = "❌"
+                        advice = "大幅回落，明天清仓"
+
+                    buf.append(
+                        f"  {status} {name}({code}) → {close_p:.2f}({day_change:+.1f}%)"
+                        f" — {advice}\n"
+                    )
+                    total_pnl += day_change
+                else:
+                    buf.append(f"  ⚪ {name}({code}) — 数据暂不可用\n")
+            except Exception:
+                buf.append(f"  ⚪ {name}({code}) — 获取失败\n")
+
+        if len(picks) > 0:
+            avg_pnl = total_pnl / len(picks)
+            hit_rate = hit / len(picks) * 100
+            buf.append(f"\n命中率: {hit}/{len(picks)} ({hit_rate:.0f}%) | 平均收益: {avg_pnl:+.1f}%\n")
+
+        return "\n".join(buf)
+    except Exception as e:
+        logger.warning(f"飞龙回测失败: {e}")
+        return ""
 
 
 def _build_llm_confirm_prompt(raw_report, mainline_sectors, dragons) -> str:

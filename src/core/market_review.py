@@ -115,7 +115,17 @@ def run_market_review(
                 region=region,
             )
             review_report = market_analyzer.run_daily_review()
-        
+
+        # 注入飞龙回测 + 策略总结
+        if review_report and region in ('cn', 'both') and (not run_markets or 'cn' in run_markets):
+            try:
+                from src.core.flying_dragon_screener import build_dragon_backtest_section
+                backtest = build_dragon_backtest_section()
+                if backtest:
+                    review_report += "\n" + backtest
+            except Exception as e:
+                logger.warning(f"飞龙回测注入失败: {e}")
+
         if review_report:
             # 保存报告到文件
             date_str = datetime.now().strftime('%Y%m%d')

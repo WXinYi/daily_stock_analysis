@@ -289,6 +289,12 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '--one-finger',
+        action='store_true',
+        help='仅运行一阳指战法选股，独立推送'
+    )
+
+    parser.add_argument(
         '--no-market-review',
         action='store_true',
         help='跳过大盘复盘分析'
@@ -1042,6 +1048,108 @@ def main() -> int:
                     logger.info("飞龙选股推送完成")
                 else:
                     logger.info("飞龙选股完成（已跳过推送）")
+            return 0
+
+        if args.one_finger:
+            from src.market_analyzer import MarketAnalyzer
+            from src.notification import NotificationService
+            from src.analyzer import GeminiAnalyzer
+            from src.core.one_finger_screener import (
+                screen_one_finger_stocks, build_one_finger_report,
+                save_one_finger_picks, run_one_finger_guard,
+            )
+            import akshare as ak
+            import pandas as pd
+
+            if not getattr(args, 'force_run', False) and getattr(config, 'trading_day_check_enabled', True):
+                from src.core.trading_calendar import get_open_markets_today, compute_effective_region as _compute_region
+                open_markets = get_open_markets_today()
+                effective_region = _compute_region(
+                    getattr(config, 'market_review_region', 'cn') or 'cn', open_markets
+                )
+                if effective_region == '':
+                    logger.info("今日非交易日，跳过一阳指选股。可使用 --force-run 强制执行。")
+                    return 0
+
+            logger.info("模式: 一阳指战法选股（午盘）")
+            notifier = NotificationService()
+
+            # 数据准备
+            ma = MarketAnalyzer()
+            overview = ma.get_market_overview()
+            top_sectors = overview.top_sectors
+            bottom_sectors = overview.bottom_sectors
+
+            # 获取上证指数日线（安检用）
+            ss_index = None
+            try:
+                df_ss = ak.stock_zh_index_daily(symbol='sh000001')
+                if df_ss is not None and not df_ss.empty:
+                    df_ss['date'] = pd.to_datetime(df_ss['date'])
+                    df_ss = df_ss.sort_values('date').tail(60).copy()
+                    ss_index = df_ss
+            except Exception:
+                pass
+
+            # 获取涨停池
+            try:
+                from data_provider.akshare_fetcher import AkshareFetcher
+                fetcher = AkshareFetcher()
+                limit_up_pool = fetcher.get_limit_up_pool()
+                if limit_up_pool is None:
+                    limit_up_pool = []
+            except Exception:
+                limit_up_pool = []
+
+            # 情绪周期判定
+            max_consec = max((s.get('consecutive', 1) for s in limit_up_pool), default=1)
+            lu_count = len(limit_up_pool)
+            if lu_count < 30 and max_consec <= 2:
+                emotion_cycle = '冰点'
+            elif lu_count >= 80 and max_consec >= 6:
+                emotion_cycle = '高潮'
+            elif max_consec >= 5 and lu_count >= 50:
+                emotion_cycle = '强势'
+            elif lu_count < 40 and max_consec <= 3:
+                emotion_cycle = '退潮'
+            elif lu_count >= 50 and max_consec >= 3:
+                emotion_cycle = '试错'
+            else:
+                emotion_cycle = '分歧'
+
+            # 大盘安检
+            market_stats = {
+                'up_count': overview.up_count,
+                'down_count': overview.down_count,
+                'limit_down_count': overview.limit_down_count,
+                'total_amount': overview.total_amount,
+            }
+            guard_result = run_one_finger_guard(ss_index, market_stats, emotion_cycle)
+
+            # 一阳指选股
+            stocks = screen_one_finger_stocks(
+                limit_up_pool=limit_up_pool,
+                top_sectors=top_sectors,
+                bottom_sectors=bottom_sectors,
+            )
+
+            # 生成报告
+            report = build_one_finger_report(stocks, emotion_cycle, market_guard=guard_result)
+
+            # 保存结果供回测
+            save_one_finger_picks(stocks)
+
+            # 推送
+            if report:
+                logger.info(f"一阳指选股报告生成，长度: {len(report)} 字符")
+                if not args.no_notify:
+                    from src.formatters import chunk_content_by_max_bytes
+                    chunks = chunk_content_by_max_bytes(report, 4096)
+                    for chunk in chunks:
+                        notifier.send(chunk)
+                    logger.info("一阳指选股推送完成")
+                else:
+                    logger.info("一阳指选股完成（已跳过推送）")
             return 0
 
         # 模式2: 定时任务模式

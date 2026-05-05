@@ -116,7 +116,7 @@ def run_market_review(
             )
             review_report = market_analyzer.run_daily_review()
 
-        # 注入飞龙回测 + 策略总结
+        # 注入飞龙回测
         if review_report and region in ('cn', 'both') and (not run_markets or 'cn' in run_markets):
             try:
                 from src.core.flying_dragon_screener import build_dragon_backtest_section

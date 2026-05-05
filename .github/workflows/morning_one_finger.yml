@@ -1,0 +1,59 @@
+name: 午盘一阳指战法选股
+
+on:
+  # 定时触发 - 每天北京时间 12:30 (UTC 4:30)
+  schedule:
+    - cron: '30 4 * * 1-5'     # 周一到周五，UTC 4:30 = 北京时间 12:30
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: '强制运行（跳过交易日检查）'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: one-finger
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 创建必要目录
+        run: mkdir -p data logs reports
+
+      - name: 执行午盘一阳指战法选股（盘中实时数据）
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          LITELLM_MODEL: ${{ vars.LITELLM_MODEL || secrets.LITELLM_MODEL }}
+          CUSTOM_WEBHOOK_URLS: ${{ secrets.CUSTOM_WEBHOOK_URLS }}
+          DINGTALK_WEBHOOK_SECRET: ${{ secrets.DINGTALK_WEBHOOK_SECRET }}
+          LOG_LEVEL: INFO
+        run: python main.py --one-finger --force-run
+
+      - name: 显示运行结果
+        if: always()
+        run: |
+          echo "午盘一阳指战法选股完成"
+          if [ -f "logs/stock_analysis_$(date +%Y%m%d).log" ]; then
+            grep -i "一阳指\|one.finger" logs/stock_analysis_*.log 2>/dev/null || echo "（无一阳指日志）"
+          fi

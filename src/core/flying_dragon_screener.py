@@ -425,23 +425,6 @@ def build_flying_dragon_report(
             ', '.join(guard_result.failed_items)))
         return "\n".join(buf)
 
-    # --- 主线段 ---
-    buf.append(f"\n### 主线板块\n")
-    if mainline_sectors:
-        for m in mainline_sectors:
-            status = "✅" if m.is_mainline else "⚠️"
-            buf.append(f"\n**{m.name}** {status}")
-            buf.append(f"\n- 涨停{m.limit_up_count}只/全市场{'-':>4} | 最高连板:{m.max_consecutive}板 | 评分:{m.score}")
-            if m.checks_passed:
-                buf.append(f"\n- 通过: {', '.join(m.checks_passed)}")
-            if m.checks_failed:
-                buf.append(f"\n- 未过: {', '.join(m.checks_failed)}")
-            if m.event_stage:
-                buf.append(f"\n- 事件发酵: {m.event_stage}")
-            buf.append("")
-    else:
-        buf.append("\n无主线板块确认，建议观望。\n")
-
     # --- 飞龙候选段 ---
     if dragons:
         # 按入场线分组

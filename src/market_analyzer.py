@@ -1389,8 +1389,223 @@ Market conditions can change quickly. The data above is for reference only and d
         report = self.generate_market_review(overview, news)
         
         logger.info("========== 大盘复盘分析完成 ==========")
-        
+
         return report
+
+    def run_chan_review(self) -> str:
+        """
+        执行缠论分析（上证指数 + Top 3 热门板块），独立推送。
+
+        Returns:
+            缠论分析报告 Markdown 文本
+        """
+        import akshare as ak
+        from datetime import datetime as _dt, timedelta as _td
+        import numpy as np
+
+        logger.info("========== 开始缠论分析 ==========")
+
+        def _calc_macd(close_series, fast=12, slow=26, signal=9):
+            """简易 MACD 计算"""
+            ema_fast = close_series.ewm(span=fast, adjust=False).mean()
+            ema_slow = close_series.ewm(span=slow, adjust=False).mean()
+            dif = ema_fast - ema_slow
+            dea = dif.ewm(span=signal, adjust=False).mean()
+            hist = (dif - dea) * 2
+            return dif, dea, hist
+
+        def _describe_trend(df, name):
+            """描述均线排列和 MACD 状态"""
+            last = df.iloc[-1]
+            ma5 = last['ma5']
+            ma10 = last['ma10']
+            ma20 = last['ma20']
+            ma60 = last['ma60']
+
+            # 均线排列
+            if pd.isna(ma60):
+                ma60 = ma20  # fallback
+            if ma5 > ma10 > ma20 > ma60:
+                alignment = "多头排列"
+            elif ma5 < ma10 < ma20 < ma60:
+                alignment = "空头排列"
+            else:
+                alignment = "缠绕"
+
+            # MACD
+            last_dif = last.get('dif', 0)
+            last_dea = last.get('dea', 0)
+            last_hist = last.get('macd_hist', 0)
+            prev_hist = 0
+            if len(df) >= 2:
+                prev_hist = df.iloc[-2].get('macd_hist', 0)
+
+            if last_dif > last_dea:
+                macd_state = "金叉（多头）"
+            else:
+                macd_state = "死叉（空头）"
+
+            # 背驰判断
+            divergence = ""
+            if last_hist < prev_hist and last_hist > 0:
+                divergence = "，红柱缩短（潜在顶背驰）"
+            elif last_hist > prev_hist and last_hist < 0:
+                divergence = "，绿柱收窄（潜在底背驰）"
+
+            # 近5日K线概要
+            recent = df.tail(5)
+            k_summary = ", ".join(
+                f"{r['date'].strftime('%m-%d'):} {r['close']:.1f}" for _, r in recent.iterrows()
+            ) if not recent.empty else "无数据"
+
+            return {
+                'name': name,
+                'close': last['close'],
+                'ma5': f"{ma5:.1f}",
+                'ma10': f"{ma10:.1f}",
+                'ma20': f"{ma20:.1f}",
+                'ma60': f"{ma60:.1f}" if not pd.isna(ma60) else "N/A",
+                'alignment': alignment,
+                'dif': f"{last_dif:.2f}",
+                'dea': f"{last_dea:.2f}",
+                'macd_state': macd_state + divergence,
+                'k_summary': k_summary,
+                'high_10d': f"{df.tail(10)['high'].max():.1f}",
+                'low_10d': f"{df.tail(10)['low'].min():.1f}",
+                'high_30d': f"{df.tail(30)['high'].max():.1f}",
+                'low_30d': f"{df.tail(30)['low'].min():.1f}",
+            }
+
+        chan_data = []
+
+        # ---- 1. 上证指数 ----
+        try:
+            df_ss = ak.stock_zh_index_daily(symbol='sh000001')
+            if df_ss is not None and not df_ss.empty:
+                df_ss = df_ss.rename(columns={'date': 'date', 'open': 'open', 'close': 'close',
+                                               'high': 'high', 'low': 'low', 'volume': 'volume'})
+                df_ss['date'] = pd.to_datetime(df_ss['date'])
+                df_ss = df_ss.sort_values('date').tail(80).copy()
+                df_ss['ma5'] = df_ss['close'].rolling(5).mean()
+                df_ss['ma10'] = df_ss['close'].rolling(10).mean()
+                df_ss['ma20'] = df_ss['close'].rolling(20).mean()
+                df_ss['ma60'] = df_ss['close'].rolling(60).mean()
+                dif, dea, hist = _calc_macd(df_ss['close'])
+                df_ss['dif'] = dif
+                df_ss['dea'] = dea
+                df_ss['macd_hist'] = hist
+                chan_data.append(_describe_trend(df_ss, '上证指数'))
+                logger.info(f"[缠论] 上证指数: {len(df_ss)} 条日线数据")
+        except Exception as e:
+            logger.warning(f"[缠论] 上证指数获取失败: {e}")
+
+        # ---- 2. 热门板块 ----
+        sector_data = []
+        try:
+            # 获取行业板块排行 Top 3
+            top_sectors, _ = self.data_manager.get_sector_rankings(3)
+            for sec in (top_sectors or [])[:3]:
+                sec_name = sec['name']
+                try:
+                    df_sec = ak.stock_board_industry_hist_em(symbol=sec_name, period='日k')
+                    if df_sec is not None and not df_sec.empty:
+                        df_sec['date'] = pd.to_datetime(df_sec['日期'])
+                        df_sec = df_sec.rename(columns={'开盘': 'open', '收盘': 'close',
+                                                         '最高': 'high', '最低': 'low'})
+                        df_sec = df_sec.sort_values('date').tail(80).copy()
+                        df_sec['ma5'] = df_sec['close'].rolling(5).mean()
+                        df_sec['ma10'] = df_sec['close'].rolling(10).mean()
+                        df_sec['ma20'] = df_sec['close'].rolling(20).mean()
+                        df_sec['ma60'] = df_sec['close'].rolling(60).mean()
+                        dif, dea, hist = _calc_macd(df_sec['close'])
+                        df_sec['dif'] = dif
+                        df_sec['dea'] = dea
+                        df_sec['macd_hist'] = hist
+                        sector_desc = _describe_trend(df_sec, sec_name)
+                        sector_data.append(sector_desc)
+                        chan_data.append(sector_desc)
+                        logger.info(f"[缠论] 板块 {sec_name}: {len(df_sec)} 条日线数据")
+                except Exception as e:
+                    logger.warning(f"[缠论] 板块 {sec_name} 获取失败: {e}")
+        except Exception as e:
+            logger.warning(f"[缠论] 板块排行获取失败: {e}")
+
+        # ---- 3. 构建 Prompt ----
+        if not chan_data:
+            logger.warning("[缠论] 无可用数据")
+            return "今日缠论数据暂不可用。"
+
+        today = _dt.now().strftime('%Y-%m-%d')
+        buf = ["# 缠论技术分析数据\n"]
+        for d in chan_data:
+            buf.append(f"## {d['name']}")
+            buf.append(f"- 收盘价: {d['close']:.2f}")
+            buf.append(f"- 均线: MA5={d['ma5']}, MA10={d['ma10']}, MA20={d['ma20']}, MA60={d['ma60']}（{d['alignment']}）")
+            buf.append(f"- MACD: DIF={d['dif']}, DEA={d['dea']}（{d['macd_state']}）")
+            buf.append(f"- 近5日K线: {d['k_summary']}")
+            buf.append(f"- 近10日高低: {d['low_10d']} ~ {d['high_10d']}")
+            buf.append(f"- 近30日高低: {d['low_30d']} ~ {d['high_30d']}")
+            buf.append("")
+
+        chan_data_block = "\n".join(buf)
+
+        prompt = f"""你是一位精通缠中说禅（缠论）的技术分析师。请根据下方提供的上证指数和热门板块的日线数据，输出一份纯 Markdown 格式的缠论分析报告。
+
+【要求】
+- 纯 Markdown，禁止 JSON/代码块
+- 对每个标的识别：当前笔/线段方向、中枢区间、背驰状态
+- 给出关键点位：中枢上沿、中枢下沿、支撑位、压力位
+- 对每个标的做走势完全分类（强/中/弱三种路径），每种给出边界条件和操作建议
+- 语言简洁，像交易员早盘笔记
+
+---
+
+{chan_data_block}
+
+---
+
+# 输出格式
+
+## 缠论早盘
+
+> 一句话总览今日各标的缠论状态
+
+### 上证指数
+
+- **当前结构**: (描述日线笔/线段/中枢)
+- **关键点位**:
+  - 中枢上沿: xxx
+  - 中枢下沿: xxx
+  - 支撑: xxx
+  - 压力: xxx
+- **走势分类**:
+  - 强: (突破哪个点位确认) → 目标/操作
+  - 中: (什么范围内运行) → 等待/持有
+  - 弱: (跌破哪个点位确认) → 减仓/止损
+
+### 热门板块
+
+**{sector_data[0]['name'] if sector_data else '板块A'}**
+（同上格式）
+
+---
+请直接输出报告。
+""" if sector_data else prompt.replace('### 热门板块\n', '')
+
+        # ---- 4. LLM 生成 ----
+        if not self.analyzer or not self.analyzer.is_available():
+            logger.warning("[缠论] AI分析器不可用")
+            return "AI 分析器未配置，无法生成缠论报告。"
+
+        logger.info("[缠论] 调用大模型生成报告...")
+        review = self.analyzer.generate_text(prompt, max_tokens=4096, temperature=0.3)
+        if review:
+            logger.info("[缠论] 报告生成成功，长度: %d 字符", len(review))
+            logger.info("========== 缠论分析完成 ==========")
+            return review
+        else:
+            logger.warning("[缠论] 大模型返回为空")
+            return "缠论分析生成失败。"
 
 
 # 测试入口

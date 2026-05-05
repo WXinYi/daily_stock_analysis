@@ -275,6 +275,12 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '--chan-review',
+        action='store_true',
+        help='仅运行缠论分析（上证+热门板块），独立推送'
+    )
+
+    parser.add_argument(
         '--no-market-review',
         action='store_true',
         help='跳过大盘复盘分析'
@@ -877,6 +883,46 @@ def main() -> int:
                 send_notification=not args.no_notify,
                 override_region=effective_region,
             )
+            return 0
+
+        # 模式1.5: 仅缠论分析
+        if args.chan_review:
+            from src.analyzer import GeminiAnalyzer
+            from src.market_analyzer import MarketAnalyzer
+            from src.notification import NotificationService
+
+            if not getattr(args, 'force_run', False) and getattr(config, 'trading_day_check_enabled', True):
+                from src.core.trading_calendar import get_open_markets_today, compute_effective_region as _compute_region
+                open_markets = get_open_markets_today()
+                effective_region = _compute_region(
+                    getattr(config, 'market_review_region', 'cn') or 'cn', open_markets
+                )
+                if effective_region == '':
+                    logger.info("今日缠论分析相关市场均为非交易日，跳过执行。可使用 --force-run 强制执行。")
+                    return 0
+
+            logger.info("模式: 仅缠论分析")
+            notifier = NotificationService()
+            analyzer = None
+            if config.gemini_api_key or config.openai_api_key or config.deepseek_api_keys:
+                analyzer = GeminiAnalyzer(config=config)
+                if not analyzer.is_available():
+                    logger.warning("AI 分析器初始化后不可用，请检查 API Key 配置")
+                    analyzer = None
+            else:
+                logger.warning("未检测到 API Key，将仅使用模板生成报告")
+
+            chan_analyzer = MarketAnalyzer(analyzer=analyzer)
+            chan_report = chan_analyzer.run_chan_review()
+            if chan_report:
+                if not args.no_notify:
+                    from src.formatters import chunk_content_by_max_bytes
+                    chunks = chunk_content_by_max_bytes(chan_report, 4096)
+                    for chunk in chunks:
+                        notifier.send(chunk)
+                    logger.info("缠论分析推送完成")
+                else:
+                    logger.info("缠论分析完成（已跳过推送）")
             return 0
 
         # 模式2: 定时任务模式

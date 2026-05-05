@@ -33,6 +33,7 @@ class CustomWebhookSender:
         self._custom_webhook_body_template = getattr(config, 'custom_webhook_body_template', None)
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
         self._dingtalk_webhook_keyword = getattr(config, 'dingtalk_webhook_keyword', None)
+        self._dingtalk_webhook_secret = getattr(config, 'dingtalk_webhook_secret', None)
  
     def send_to_custom(self, content: str) -> bool:
         """
@@ -147,6 +148,8 @@ class CustomWebhookSender:
         return success_count > 0
 
     def _post_custom_webhook(self, url: str, payload: dict, timeout: int = 30) -> bool:
+        # 钉钉加签
+        signed_url = self._sign_dingtalk_url(url)
         headers = {
             'Content-Type': 'application/json; charset=utf-8',
             'User-Agent': 'StockAnalysis/1.0',
@@ -155,7 +158,7 @@ class CustomWebhookSender:
         if self._custom_webhook_bearer_token:
             headers['Authorization'] = f'Bearer {self._custom_webhook_bearer_token}'
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-        response = requests.post(url, data=body, headers=headers, timeout=timeout, verify=self._webhook_verify_ssl)
+        response = requests.post(signed_url, data=body, headers=headers, timeout=timeout, verify=self._webhook_verify_ssl)
         if response.status_code == 200:
             return True
         logger.error(f"自定义 Webhook 推送失败: HTTP {response.status_code}")
@@ -289,6 +292,32 @@ class CustomWebhookSender:
         return ok == total
 
     
+    def _sign_dingtalk_url(self, url: str) -> str:
+        """对钉钉 Webhook URL 加签（支持安全设置的加签方式）。"""
+        if not self._dingtalk_webhook_secret:
+            return url
+        if not self._is_dingtalk_webhook(url):
+            return url
+
+        import time as _time
+        import hmac as _hmac
+        import hashlib as _hashlib
+        import base64 as _base64
+        from urllib.parse import quote as _quote
+
+        timestamp = str(int(_time.time() * 1000))
+        string_to_sign = f"{timestamp}\n{self._dingtalk_webhook_secret}"
+        sign = _base64.b64encode(
+            _hmac.new(
+                self._dingtalk_webhook_secret.encode('utf-8'),
+                string_to_sign.encode('utf-8'),
+                digestmod=_hashlib.sha256,
+            ).digest()
+        ).decode('utf-8')
+
+        separator = '&' if '?' in url else '?'
+        return f"{url}{separator}timestamp={timestamp}&sign={_quote(sign, safe='')}"
+
     @staticmethod
     def _is_dingtalk_webhook(url: str) -> bool:
         url_lower = (url or "").lower()

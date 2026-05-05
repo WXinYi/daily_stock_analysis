@@ -25,6 +25,8 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
+import pandas as pd
+
 from dotenv import dotenv_values
 from src.config import setup_env
 
@@ -278,6 +280,12 @@ def parse_arguments() -> argparse.Namespace:
         '--chan-review',
         action='store_true',
         help='仅运行缠论分析（上证+热门板块），独立推送'
+    )
+
+    parser.add_argument(
+        '--flying-dragon',
+        action='store_true',
+        help='仅运行飞龙在天选股，独立推送'
     )
 
     parser.add_argument(
@@ -923,6 +931,114 @@ def main() -> int:
                     logger.info("缠论分析推送完成")
                 else:
                     logger.info("缠论分析完成（已跳过推送）")
+            return 0
+
+        # 模式1.6: 仅飞龙在天选股
+        if args.flying_dragon:
+            from src.market_analyzer import MarketAnalyzer
+            from src.notification import NotificationService
+            from src.analyzer import GeminiAnalyzer
+            from src.core.flying_dragon_screener import (
+                MarketGuard, SectorConfirmer, FlyingDragonScreener,
+                build_flying_dragon_report,
+            )
+            import akshare as ak
+
+            if not getattr(args, 'force_run', False) and getattr(config, 'trading_day_check_enabled', True):
+                from src.core.trading_calendar import get_open_markets_today, compute_effective_region as _compute_region
+                open_markets = get_open_markets_today()
+                effective_region = _compute_region(
+                    getattr(config, 'market_review_region', 'cn') or 'cn', open_markets
+                )
+                if effective_region == '':
+                    logger.info("今日非交易日，跳过飞龙选股。可使用 --force-run 强制执行。")
+                    return 0
+
+            logger.info("模式: 飞龙在天选股")
+            notifier = NotificationService()
+
+            # 初始化LLM
+            analyzer = None
+            if config.gemini_api_key or config.openai_api_key or config.deepseek_api_keys:
+                analyzer = GeminiAnalyzer(config=config)
+
+            # Phase 0: 获取数据
+            from data_provider.akshare_fetcher import AkshareFetcher
+            fetcher = AkshareFetcher()
+            limit_up_pool = fetcher.get_limit_up_pool()
+            if limit_up_pool is None:
+                limit_up_pool = []
+
+            # 获取上证指数日线
+            ss_index = None
+            try:
+                df_ss = ak.stock_zh_index_daily(symbol='sh000001')
+                if df_ss is not None and not df_ss.empty:
+                    df_ss = df_ss.rename(columns={'date': 'date', 'volume': 'volume'})
+                    df_ss['date'] = pd.to_datetime(df_ss['date'])
+                    df_ss = df_ss.sort_values('date').tail(60).copy()
+                    ss_index = df_ss
+            except Exception:
+                pass
+
+            # 获取市场统计（复用 MarketAnalyzer 的数据获取）
+            ma = MarketAnalyzer(analyzer=analyzer)
+            overview = ma.get_market_overview()
+            market_stats = {
+                'up_count': overview.up_count,
+                'down_count': overview.down_count,
+                'limit_up_count': overview.limit_up_count,
+                'limit_down_count': overview.limit_down_count,
+                'total_amount': overview.total_amount,
+            }
+
+            # Phase 1: 大盘安检
+            # 简单情绪周期判定
+            max_consec = max((s.get('consecutive', 1) for s in limit_up_pool), default=1)
+            lu_count = len(limit_up_pool)
+            up_ratio = overview.up_count / max(overview.down_count, 1)
+            if lu_count < 30 and max_consec <= 2:
+                emotion_cycle = '冰点'
+            elif lu_count >= 80 and max_consec >= 6:
+                emotion_cycle = '高潮'
+            elif max_consec >= 5 and lu_count >= 50:
+                emotion_cycle = '强势'
+            elif lu_count < 40 and max_consec <= 3:
+                emotion_cycle = '退潮'
+            elif lu_count >= 50 and max_consec >= 3:
+                emotion_cycle = '试错'
+            else:
+                emotion_cycle = '分歧'
+
+            guard_result = MarketGuard.check(ss_index, market_stats, emotion_cycle)
+
+            # Phase 2: 主线确认
+            top_sectors, bottom_sectors = overview.top_sectors, overview.bottom_sectors
+            mainline_sectors = SectorConfirmer.confirm(limit_up_pool, (top_sectors, bottom_sectors))
+
+            # Phase 3-4: 飞龙选股 + 三线分类
+            dragons = []
+            if guard_result.passed and mainline_sectors:
+                from data_provider.base import DataFetcherManager
+                dm = DataFetcherManager()
+                dragons = FlyingDragonScreener.screen(limit_up_pool, mainline_sectors, dm)
+
+            # Phase 5: 构建报告
+            report = build_flying_dragon_report(
+                guard_result, mainline_sectors, dragons, analyzer, emotion_cycle
+            )
+
+            # 推送
+            if report:
+                logger.info(f"飞龙选股报告生成，长度: {len(report)} 字符")
+                if not args.no_notify:
+                    from src.formatters import chunk_content_by_max_bytes
+                    chunks = chunk_content_by_max_bytes(report, 4096)
+                    for chunk in chunks:
+                        notifier.send(chunk)
+                    logger.info("飞龙选股推送完成")
+                else:
+                    logger.info("飞龙选股完成（已跳过推送）")
             return 0
 
         # 模式2: 定时任务模式

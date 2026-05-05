@@ -1580,6 +1580,12 @@ class NotificationService(
         Returns:
             是否至少有一个渠道发送成功
         """
+        # 统一加水印
+        from datetime import datetime as _dt
+        watermark = f"\n\n---\n*Strategy by Wxy · {_dt.now().strftime('%Y-%m-%d')}*\n"
+        if watermark.strip() not in content:
+            content = content.rstrip() + watermark
+
         context_success = self.send_to_context(content)
 
         if not self._available_channels:

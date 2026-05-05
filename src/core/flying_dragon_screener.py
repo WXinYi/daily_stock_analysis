@@ -416,16 +416,13 @@ def build_flying_dragon_report(
     """Phase 5: 构建飞龙选股报告(LLM确认)"""
     today = datetime.now().strftime('%Y-%m-%d')
 
-    # --- 安检段 ---
     buf = [f"## 飞龙在天 · 早盘选股\n",
-           f"**{today}**\n",
-           f"\n### 大盘安检",
-           f"\n{' | '.join(guard_result.details)}",
-           f"\n情绪周期: **{emotion_cycle}**" if emotion_cycle else "",
-           f"\n> {guard_result.advice}\n"]
+           f"**{today}**",
+           f" | 情绪: **{emotion_cycle}**\n" if emotion_cycle else "\n"]
 
     if not guard_result.passed:
-        buf.append("\n---\n*安检不通过，今日不筛飞龙，建议空仓/轻仓等待。*\n")
+        buf.append("\n*安检不通过（{}），今日不筛飞龙，建议空仓/轻仓等待。*\n".format(
+            ', '.join(guard_result.failed_items)))
         return "\n".join(buf)
 
     # --- 主线段 ---
@@ -472,13 +469,7 @@ def build_flying_dragon_report(
     else:
         buf.append("\n### 飞龙候选\n无满足四大条件的飞龙，等待更好信号。\n")
 
-    # --- 雷区提醒 ---
-    buf.append(f"\n### 高危雷区提醒")
-    buf.append(f"\n- 无主线不硬做，跌破一线不止损是大忌")
-    buf.append(f"\n- 单票≤15%，总仓≤70%，现金≥20%")
-    buf.append(f"\n- 止损: 单票-7%强制止损，连续2日破5日线止损")
-    buf.append(f"\n- 做T仅在上升趋势中，下降趋势不做T")
-    buf.append(f"\n\n*飞龙在天战法选股，仅供参考，不构成投资建议。*\n")
+    buf.append(f"\n*飞龙在天战法选股，仅供参考，不构成投资建议。*\n")
 
     report = "\n".join(buf)
 

@@ -210,6 +210,7 @@ def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
 def _batch_fetch_klines(codes: List[str], max_workers: int = 12, days: int = 60) -> Dict[str, pd.DataFrame]:
     """并行拉取多只股票的日K线"""
     results = {}
+    failed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_fetch_single_kline, code, days): code for code in codes}
         for f in as_completed(futures):
@@ -218,8 +219,12 @@ def _batch_fetch_klines(codes: List[str], max_workers: int = 12, days: int = 60)
                 df = f.result(timeout=15)
                 if df is not None and not df.empty:
                     results[code] = df
+                else:
+                    failed += 1
             except Exception:
-                pass
+                failed += 1
+    if failed > 0:
+        logger.warning(f"K线拉取: {len(results)}成功 / {failed}失败")
     return results
 
 

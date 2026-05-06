@@ -14,7 +14,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 import pandas as pd
 
@@ -425,47 +425,49 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         except Exception as e:
             logger.error(f"[大盘] 获取涨跌统计失败: {e}")
 
+    @staticmethod
+    def _fetch_concept_rankings() -> List[Tuple[str, float]]:
+        """拉取同花顺全量375个概念并按涨跌幅排序，返回 [(name, change_pct), ...]"""
+        import akshare as ak
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        df = ak.stock_board_concept_name_ths()
+        all_names = df['name'].tolist()
+
+        def _fetch(name):
+            try:
+                info = ak.stock_board_concept_info_ths(symbol=name)
+                if info is None or info.empty:
+                    return None
+                row = info.set_index('项目')['值'].to_dict()
+                chg_str = str(row.get('板块涨幅', '0%')).replace('%', '')
+                if chg_str in ('-', '—', ''):
+                    return None
+                return (name, float(chg_str))
+            except Exception:
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            futures = {ex.submit(_fetch, n): n for n in all_names}
+            for f in as_completed(futures):
+                r = f.result(timeout=30)
+                if r:
+                    results.append(r)
+        results.sort(key=lambda x: -x[1])
+        return results
+
     def _get_sector_rankings(self, overview: MarketOverview):
-        """获取概念涨跌榜（同花顺375个概念，并行查询~15秒）"""
+        """获取概念涨跌榜（复用 _fetch_concept_rankings）"""
         try:
             logger.info("[大盘] 获取概念涨跌榜(同花顺)...")
-            import akshare as ak
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            import time
-
-            df_concepts = ak.stock_board_concept_name_ths()
-            all_names = df_concepts['name'].tolist()
-            time.sleep(0.5)  # 避免与前面的API调用冲突
-
-            def _fetch_one(name):
-                try:
-                    info = ak.stock_board_concept_info_ths(symbol=name)
-                    if info is None or info.empty:
-                        return None
-                    row = info.set_index('项目')['值'].to_dict()
-                    chg_str = str(row.get('板块涨幅', '0%')).replace('%', '')
-                    if chg_str in ('-', '—', ''):
-                        return None
-                    return {'name': name, 'change_pct': float(chg_str)}
-                except Exception:
-                    return None
-
-            results = []
-            with ThreadPoolExecutor(max_workers=10) as ex:
-                futures = {ex.submit(_fetch_one, n): n for n in all_names}
-                for f in as_completed(futures):
-                    r = f.result(timeout=30)
-                    if r:
-                        results.append(r)
-
+            results = self._fetch_concept_rankings()
             if results:
-                results.sort(key=lambda x: -x['change_pct'])
-                overview.top_sectors = results[:5]
-                overview.bottom_sectors = results[-5:][::-1]
+                overview.top_sectors = [{'name': n, 'change_pct': c} for n, c in results[:5]]
+                overview.bottom_sectors = [{'name': n, 'change_pct': c} for n, c in results[-5:][::-1]]
                 logger.info(f"[大盘] 领涨概念: {[s['name'] for s in overview.top_sectors]}")
                 logger.info(f"[大盘] 领跌概念: {[s['name'] for s in overview.bottom_sectors]}")
                 return
-
         except Exception as e:
             logger.warning(f"[大盘] 概念涨跌榜失败: {e}，降级行业排行")
 
@@ -1605,33 +1607,7 @@ Market conditions can change quickly. The data above is for reference only and d
         sector_data = []
         hot_sectors = []
         try:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-
-            df_cpts = ak.stock_board_concept_name_ths()
-            all_names = df_cpts['name'].tolist()
-
-            def _fetch_chg(name):
-                try:
-                    info = ak.stock_board_concept_info_ths(symbol=name)
-                    if info is None or info.empty:
-                        return None
-                    row = info.set_index('项目')['值'].to_dict()
-                    chg_str = str(row.get('板块涨幅', '0%')).replace('%', '')
-                    if chg_str in ('-', '—', ''):
-                        return None
-                    return (name, float(chg_str))
-                except Exception:
-                    return None
-
-            cpt_results = []
-            with ThreadPoolExecutor(max_workers=10) as ex:
-                futures = {ex.submit(_fetch_chg, n): n for n in all_names}
-                for f in as_completed(futures):
-                    r = f.result(timeout=30)
-                    if r:
-                        cpt_results.append(r)
-
-            cpt_results.sort(key=lambda x: -x[1])
+            cpt_results = self._fetch_concept_rankings()
             hot_sectors = [n for n, _ in cpt_results[:5]]
             logger.info(f"[缠论] 同花顺热门概念: {hot_sectors}")
         except Exception as e:

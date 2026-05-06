@@ -170,18 +170,28 @@ class OneFingerStock:
 # ═══════════════════════════════════════════════════════════════
 
 def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
-    """拉取单只股票的日K线（akshare），返回标准化的DataFrame"""
+    """拉取单只股票的日K线（东财→腾讯降级），返回标准化的DataFrame"""
     try:
         import akshare as ak
         from datetime import date
         end_dt = date.today()
         start_dt = end_dt - timedelta(days=days + 30)
-        df = ak.stock_zh_a_hist(
-            symbol=code, period='daily',
-            start_date=start_dt.strftime('%Y%m%d'),
-            end_date=end_dt.strftime('%Y%m%d'),
-            adjust='qfq',
-        )
+        sd = start_dt.strftime('%Y%m%d')
+        ed = end_dt.strftime('%Y%m%d')
+
+        df = None
+        # 先试东财，失败则降级腾讯
+        for src in ['em', 'tx']:
+            try:
+                if src == 'em':
+                    df = ak.stock_zh_a_hist(symbol=code, period='daily', start_date=sd, end_date=ed, adjust='qfq')
+                else:
+                    df = ak.stock_zh_a_hist_tx(symbol=code, start_date=sd, end_date=ed, adjust='qfq')
+                if df is not None and not df.empty:
+                    break
+            except Exception:
+                continue
+
         if df is None or df.empty:
             return None
         df = df.rename(columns={
@@ -472,18 +482,24 @@ def screen_one_finger_stocks(
     logger.info("========== 一阳指战法选股（经典版）==========")
 
     # ── STEP 1: 初筛 ──
-    try:
-        import akshare as ak
-        snapshot = ak.stock_zh_a_spot_em()
-    except Exception as e:
-        logger.error(f"全A快照获取失败: {e}")
-        return []
+    import akshare as ak
+    snapshot = None
+    # 先试东财（字段最全），失败则降级到新浪
+    for src_name, fetch_fn in [
+        ('东财', lambda: ak.stock_zh_a_spot_em()),
+        ('新浪', lambda: ak.stock_zh_a_spot()),
+    ]:
+        try:
+            snapshot = fetch_fn()
+            if snapshot is not None and not snapshot.empty:
+                logger.info(f"全A快照({src_name}): {len(snapshot)} 只")
+                break
+        except Exception as e:
+            logger.warning(f"全A快照({src_name})失败: {e}")
 
     if snapshot is None or snapshot.empty:
-        logger.error("全A快照为空")
+        logger.error("全A快照获取失败（东财+新浪均不可用）")
         return []
-
-    logger.info(f"全A快照: {len(snapshot)} 只股票")
 
     # 涨停池查找表
     limit_up_map = {}
@@ -495,21 +511,26 @@ def screen_one_finger_stocks(
                 'name': s.get('name', ''),
             }
 
-    # 初筛：涨幅>5% + 非ST
+    # 初筛：涨幅>5% + 非ST（兼容东财/新浪两种列名）
     candidates = []
     for _, row in snapshot.iterrows():
-        code = str(row.get('代码', ''))
-        name = str(row.get('名称', ''))
+        code = str(row.get('代码', '')).strip()
+        name = str(row.get('名称', '')).strip()
         change_pct = float(row.get('涨跌幅', 0) or 0)
-        volume_ratio = float(row.get('量比', 0) or 0)
+        # 新浪接口无量比/换手率/行业字段
+        volume_ratio = float(row.get('量比', 1.0) or 1.0)
         turn_over = float(row.get('换手率', 0) or 0)
         industry = str(row.get('所属行业', '') or '')
+
+        # 新浪代码带前缀（bj920000/sh603095/sz002081），去掉前2位
+        if code[:2] in ('bj', 'sh', 'sz', 'BJ', 'SH', 'SZ'):
+            code = code[2:]
 
         if 'ST' in name or '*ST' in name or 'st' in name.lower():
             continue
         if len(code) < 6:
             continue
-        if change_pct < MIN_PRICE_INCREASE * 100:  # 涨幅<5%
+        if change_pct < MIN_PRICE_INCREASE * 100:
             continue
 
         candidates.append({

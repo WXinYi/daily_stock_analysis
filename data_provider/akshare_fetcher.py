@@ -1811,7 +1811,7 @@ class AkshareFetcher(BaseFetcher):
         获取涨停池数据（含连板数、所属行业）
 
         Args:
-            date: 日期字符串 'YYYYMMDD'，默认最近交易日（自动回退最多3个交易日）
+            date: 日期字符串 'YYYYMMDD'，默认最近交易日（自动回退最多10个自然日，覆盖长假）
 
         Returns:
             list of dict: [{'code', 'name', 'consecutive', 'industry', 'first_time', 'change_pct', 'turnover', 'limit_reason'}, ...]
@@ -1823,9 +1823,9 @@ class AkshareFetcher(BaseFetcher):
             self._set_random_user_agent()
             self._enforce_rate_limit()
 
-            # 尝试最近3个自然日，假期自动回退
+            # 尝试最近10个自然日，覆盖长假
             base_date = date or _dt.now().strftime('%Y%m%d')
-            attempts = [(_dt.strptime(base_date, '%Y%m%d') - _td(days=i)).strftime('%Y%m%d') for i in range(3)]
+            attempts = [(_dt.strptime(base_date, '%Y%m%d') - _td(days=i)).strftime('%Y%m%d') for i in range(10)]
             for attempt_date in attempts:
                 try:
                     df = ak.stock_zt_pool_em(date=attempt_date)
@@ -1836,7 +1836,7 @@ class AkshareFetcher(BaseFetcher):
                 except Exception:
                     continue
             else:
-                logger.info("[涨停池] 近3日均无涨停数据")
+                logger.info("[涨停池] 近10日均无涨停数据")
                 return []
 
             if df is None or df.empty:

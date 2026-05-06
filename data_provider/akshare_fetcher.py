@@ -1796,13 +1796,28 @@ class AkshareFetcher(BaseFetcher):
             logger.info("[API调用] ak.stock_sector_spot() 获取行业板块排行(新浪)...")
             df = ak.stock_sector_spot(indicator='行业')
             if df is None or df.empty:
-                return None
+                raise ValueError("新浪返回空数据")
             change_col = '涨跌幅'
             name = '板块'
             return _get_rank_top_n(df, change_col, name, n)
-        
+
         except Exception as e:
-            logger.error(f"[Akshare] 新浪接口获取板块排行也失败: {e}")
+            logger.warning(f"[Akshare] 新浪接口获取板块排行失败: {e}，尝试同花顺接口")
+
+        # 新浪失败后，尝试同花顺接口（行业名称更规范，IP 限制较宽松）
+        try:
+            self._set_random_user_agent()
+            self._enforce_rate_limit()
+
+            logger.info("[API调用] ak.stock_board_industry_summary_ths() 获取板块排行(同花顺)...")
+            df = ak.stock_board_industry_summary_ths()
+            if df is not None and not df.empty:
+                change_col = '涨跌幅'
+                name = '板块'
+                return _get_rank_top_n(df, change_col, name, n)
+
+        except Exception as e:
+            logger.error(f"[Akshare] 同花顺接口获取板块排行也失败: {e}")
             return None
 
 

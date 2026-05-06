@@ -170,30 +170,65 @@ class OneFingerStock:
 # ═══════════════════════════════════════════════════════════════
 
 def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
-    """拉取单只股票的日K线（东财→腾讯降级），返回标准化的DataFrame"""
+    """拉取单只股票的日K线（baostock→东财→腾讯），返回标准化的DataFrame"""
     try:
-        import akshare as ak
+        import baostock as bs
         from datetime import date
         end_dt = date.today()
         start_dt = end_dt - timedelta(days=days + 30)
-        sd = start_dt.strftime('%Y%m%d')
-        ed = end_dt.strftime('%Y%m%d')
+        sd = start_dt.strftime('%Y-%m-%d')
+        ed = end_dt.strftime('%Y-%m-%d')
+
+        # 格式化代码为 baostock 格式: sh.600000 或 sz.000001
+        if code.startswith('6'):
+            bs_code = f'sh.{code}'
+        else:
+            bs_code = f'sz.{code}'
 
         df = None
-        # 先试东财，失败则降级腾讯
-        for src in ['em', 'tx']:
+        # 1) baostock（不依赖 IP，国外可访问）
+        try:
+            bs.login()
+            rs = bs.query_history_k_data_plus(
+                bs_code, 'date,open,close,high,low,volume,amount,amplitude,pctChg,turn',
+                start_date=sd, end_date=ed, frequency='d', adjustflag='2',
+            )
+            if rs.error_code == '0':
+                rows = []
+                while rs.next():
+                    rows.append(rs.get_row_data())
+                if rows:
+                    import pandas as pd
+                    df = pd.DataFrame(rows, columns=['date','open','close','high','low','volume','amount','amplitude','change_pct','turnover'])
+                    for col in ['open','close','high','low','volume','amount','amplitude','change_pct','turnover']:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                    df = df.dropna(subset=['close'])
+            bs.logout()
+        except Exception:
+            pass
+
+        # 2) 东财降级
+        if df is None or df.empty:
             try:
-                if src == 'em':
-                    df = ak.stock_zh_a_hist(symbol=code, period='daily', start_date=sd, end_date=ed, adjust='qfq')
-                else:
-                    df = ak.stock_zh_a_hist_tx(symbol=code, start_date=sd, end_date=ed, adjust='qfq')
-                if df is not None and not df.empty:
-                    break
+                import akshare as ak
+                df = ak.stock_zh_a_hist(symbol=code, period='daily',
+                    start_date=sd.replace('-',''), end_date=ed.replace('-',''), adjust='qfq')
             except Exception:
-                continue
+                pass
+
+        # 3) 腾讯降级
+        if df is None or df.empty:
+            try:
+                import akshare as ak
+                df = ak.stock_zh_a_hist_tx(symbol=code,
+                    start_date=sd.replace('-',''), end_date=ed.replace('-',''), adjust='qfq')
+            except Exception:
+                pass
 
         if df is None or df.empty:
             return None
+
+        # 统一列名
         df = df.rename(columns={
             '日期': 'date', '开盘': 'open', '收盘': 'close',
             '最高': 'high', '最低': 'low', '成交量': 'volume',

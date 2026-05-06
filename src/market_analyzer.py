@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 _ENGLISH_SECTION_PATTERNS = {
     "market_summary": r"###\s*(?:1\.\s*)?Market Summary",
     "index_commentary": r"###\s*(?:2\.\s*)?(?:Index Commentary|Major Indices)",
-    "sector_highlights": r"###\s*(?:4\.\s*)?(?:Sector Highlights|Sector/Theme Highlights)",
+    "sector_highlights": r"###\s*(?:4\.\s*)?(?:Sector/Theme Highlights|Concept Highlights)",
 }
 
 _CHINESE_SECTION_PATTERNS = {
     "market_summary": r"###\s*一、(?:盘面总览|市场总结)",
     "index_commentary": r"###\s*二、(?:指数结构|指数点评|主要指数)",
-    "sector_highlights": r"###\s*三、(?:板块主线|热点解读|板块表现)",
+    "sector_highlights": r"###\s*三、(?:概念主线|板块主线|热点解读|板块表现)",
     "funds_sentiment": r"###\s*四、(?:资金与情绪|资金动向)",
     "news_catalysts": r"###\s*五、(?:消息催化|后市展望)",
 }
@@ -360,6 +360,47 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         except Exception as e:
             logger.error(f"[大盘] 获取指数行情失败: {e}")
 
+        # 用腾讯实时报价补充/修正指数数据（避免假期后K线未更新）
+        if indices and self.region == 'cn':
+            try:
+                import requests
+                idx_codes = {
+                    'sh000001': '上证指数', 'sz399001': '深证成指',
+                    'sz399006': '创业板指', 'sh000016': '上证50',
+                    'sh000300': '沪深300',
+                }
+                tx_url = 'http://qt.gtimg.cn/q=' + ','.join(idx_codes.keys())
+                resp = requests.get(tx_url, timeout=10)
+                resp.encoding = 'gbk'
+                tx_map = {}
+                for line in resp.text.strip().split('\n'):
+                    if '~' not in line:
+                        continue
+                    parts = line.split('~')
+                    if len(parts) < 35:
+                        continue
+                    tc = parts[2]
+                    price = float(parts[3]) if parts[3] else 0
+                    prev_close = float(parts[4]) if parts[4] else 0
+                    change_pct = float(parts[32]) if parts[32] else 0
+                    if price > 0:
+                        tx_map[tc] = {'price': price, 'prev_close': prev_close, 'change_pct': change_pct}
+
+                # 补充现价/涨跌幅到已有指数
+                for idx in indices:
+                    for code, name in idx_codes.items():
+                        if idx.code.endswith(code[-6:]) or idx.name == name:
+                            tx = tx_map.get(code[-6:])
+                            if tx and abs(idx.current - tx['price']) / tx['price'] > 0.001:
+                                old = idx.current
+                                idx.current = tx['price']
+                                idx.change_pct = tx['change_pct']
+                                idx.prev_close = tx['prev_close']
+                                logger.info(f"[大盘] {idx.name}: {old:.2f} → {tx['price']:.2f} (腾讯实时)")
+                            break
+            except Exception as e:
+                logger.warning(f"[大盘] 腾讯行情补充失败: {e}")
+
         return indices
 
     def _get_market_statistics(self, overview: MarketOverview):
@@ -385,21 +426,57 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             logger.error(f"[大盘] 获取涨跌统计失败: {e}")
 
     def _get_sector_rankings(self, overview: MarketOverview):
-        """获取板块涨跌榜"""
+        """获取概念涨跌榜（同花顺375个概念，并行查询~15秒）"""
         try:
-            logger.info("[大盘] 获取板块涨跌榜...")
+            logger.info("[大盘] 获取概念涨跌榜(同花顺)...")
+            import akshare as ak
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            import time
 
+            df_concepts = ak.stock_board_concept_name_ths()
+            all_names = df_concepts['name'].tolist()
+            time.sleep(0.5)  # 避免与前面的API调用冲突
+
+            def _fetch_one(name):
+                try:
+                    info = ak.stock_board_concept_info_ths(symbol=name)
+                    if info is None or info.empty:
+                        return None
+                    row = info.set_index('项目')['值'].to_dict()
+                    chg_str = str(row.get('板块涨幅', '0%')).replace('%', '')
+                    if chg_str in ('-', '—', ''):
+                        return None
+                    return {'name': name, 'change_pct': float(chg_str)}
+                except Exception:
+                    return None
+
+            results = []
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                futures = {ex.submit(_fetch_one, n): n for n in all_names}
+                for f in as_completed(futures):
+                    r = f.result(timeout=30)
+                    if r:
+                        results.append(r)
+
+            if results:
+                results.sort(key=lambda x: -x['change_pct'])
+                overview.top_sectors = results[:5]
+                overview.bottom_sectors = results[-5:][::-1]
+                logger.info(f"[大盘] 领涨概念: {[s['name'] for s in overview.top_sectors]}")
+                logger.info(f"[大盘] 领跌概念: {[s['name'] for s in overview.bottom_sectors]}")
+                return
+
+        except Exception as e:
+            logger.warning(f"[大盘] 概念涨跌榜失败: {e}，降级行业排行")
+
+        # 降级：传统行业排行
+        try:
             top_sectors, bottom_sectors = self.data_manager.get_sector_rankings(5)
-
             if top_sectors or bottom_sectors:
                 overview.top_sectors = top_sectors
                 overview.bottom_sectors = bottom_sectors
-
-                logger.info(f"[大盘] 领涨板块: {[s['name'] for s in overview.top_sectors]}")
-                logger.info(f"[大盘] 领跌板块: {[s['name'] for s in overview.bottom_sectors]}")
-
-        except Exception as e:
-            logger.error(f"[大盘] 获取板块涨跌榜失败: {e}")
+        except Exception:
+            pass
     
     # def _get_north_flow(self, overview: MarketOverview):
     #     """获取北向资金流入"""
@@ -904,13 +981,13 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if overview.top_sectors:
             if self._get_review_language() == "en":
                 lines.extend([
-                    "#### Leading Sectors",
+                    "#### Leading Concepts",
                     "| Rank | Sector | Change |",
                     "|------|--------|--------|",
                 ])
             else:
                 lines.extend([
-                    "#### 领涨板块 Top 5",
+                    "#### 领涨概念 Top 5",
                     "| 排名 | 板块 | 涨跌幅 |",
                     "|------|------|--------|",
                 ])
@@ -929,7 +1006,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 ])
             else:
                 lines.extend([
-                    "#### 领跌板块 Top 5",
+                    "#### 领跌概念 Top 5",
                     "| 排名 | 板块 | 涨跌幅 |",
                     "|------|------|--------|",
                 ])
@@ -1224,8 +1301,8 @@ Output the report content directly, no extra commentary.
 ### 二、指数结构
 （{self._get_index_hint()}，点明谁护盘谁拖累，给出具体支撑位/压力位数字）
 
-### 三、板块主线
-（领涨方向+驱动逻辑+持续性评估；领跌方向+扩散风险。必须明确回答：有主线吗？主线是谁？）
+### 三、概念主线
+（领涨概念+驱动逻辑+持续性评估；领跌概念+扩散风险。必须明确回答：有主线吗？主线是谁？）
 
 ### 四、资金与情绪
 （量能信号、涨跌停结构、高标股状态，给情绪定性：亢奋/偏暖/中性/降温/恐慌）
@@ -1524,30 +1601,48 @@ Market conditions can change quickly. The data above is for reference only and d
         except Exception as e:
             logger.warning(f"[缠论] 上证指数获取失败: {e}")
 
-        # ---- 2. 热门板块（同花顺数据，按成交额 Top 5）----
+        # ---- 2. 热门概念（同花顺375个概念，按涨跌幅 Top 5）----
         sector_data = []
         hot_sectors = []
         try:
-            df_ths = ak.stock_board_industry_summary_ths()
-            if df_ths is not None and not df_ths.empty:
-                name_col = '板块'
-                amt_col = '总成交额'
-                df_ths[amt_col] = pd.to_numeric(df_ths[amt_col], errors='coerce')
-                df_valid = df_ths.dropna(subset=[amt_col])
-                top5_hot = df_valid.nlargest(5, amt_col)
-                for _, row in top5_hot.iterrows():
-                    hot_sectors.append(row[name_col])
-                logger.info(f"[缠论] 同花顺热门板块: {hot_sectors}")
-        except Exception as e:
-            logger.warning(f"[缠论] 同花顺板块排行获取失败: {e}")
+            from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        # 同花顺行业K线拉取
-        all_sector_names = hot_sectors
-        for sec_name in all_sector_names:
+            df_cpts = ak.stock_board_concept_name_ths()
+            all_names = df_cpts['name'].tolist()
+
+            def _fetch_chg(name):
+                try:
+                    info = ak.stock_board_concept_info_ths(symbol=name)
+                    if info is None or info.empty:
+                        return None
+                    row = info.set_index('项目')['值'].to_dict()
+                    chg_str = str(row.get('板块涨幅', '0%')).replace('%', '')
+                    if chg_str in ('-', '—', ''):
+                        return None
+                    return (name, float(chg_str))
+                except Exception:
+                    return None
+
+            cpt_results = []
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                futures = {ex.submit(_fetch_chg, n): n for n in all_names}
+                for f in as_completed(futures):
+                    r = f.result(timeout=30)
+                    if r:
+                        cpt_results.append(r)
+
+            cpt_results.sort(key=lambda x: -x[1])
+            hot_sectors = [n for n, _ in cpt_results[:5]]
+            logger.info(f"[缠论] 同花顺热门概念: {hot_sectors}")
+        except Exception as e:
+            logger.warning(f"[缠论] 同花顺概念排行获取失败: {e}")
+
+        # 概念K线拉取（用概念K线接口）
+        for sec_name in hot_sectors:
             if sec_name in {d['name'] for d in sector_data}:
                 continue
             try:
-                df_sec = ak.stock_board_industry_index_ths(
+                df_sec = ak.stock_board_concept_index_ths(
                     symbol=sec_name,
                     start_date=(_dt.now() - _td(days=120)).strftime('%Y%m%d'),
                     end_date=_dt.now().strftime('%Y%m%d'),
@@ -1570,9 +1665,9 @@ Market conditions can change quickly. The data above is for reference only and d
                     sector_desc = _describe_trend(df_sec, sec_name)
                     sector_data.append(sector_desc)
                     chan_data.append(sector_desc)
-                    logger.info(f"[缠论] 板块 {sec_name}: {len(df_sec)} 条日线数据")
+                    logger.info(f"[缠论] 概念 {sec_name}: {len(df_sec)} 条日线数据")
             except Exception as e:
-                logger.warning(f"[缠论] 板块 {sec_name} 获取失败: {e}")
+                logger.warning(f"[缠论] 概念 {sec_name} 获取失败: {e}")
 
         # ---- 3. 构建 Prompt ----
         if not chan_data:
@@ -1582,7 +1677,7 @@ Market conditions can change quickly. The data above is for reference only and d
         today = _dt.now().strftime('%Y-%m-%d')
         buf = ["# 缠论技术分析数据\n"]
         for d in chan_data:
-            tag = "🔥热门" if d['name'] in hot_sectors else ""
+            tag = "🔥热门概念" if d['name'] in hot_sectors else ""
             buf.append(f"## {d['name']} {tag}")
             buf.append(f"- 收盘价: {d['close']:.2f}")
             buf.append(f"- 均线: MA5={d['ma5']}, MA10={d['ma10']}, MA20={d['ma20']}, MA60={d['ma60']}（{d['alignment']}）")
@@ -1596,7 +1691,7 @@ Market conditions can change quickly. The data above is for reference only and d
 
         hot_list = "\n".join(f"  - {n}" for n in hot_sectors) if hot_sectors else "（无数据）"
 
-        prompt = f"""你是一位精通缠中说禅（缠论）的技术分析师。请根据下方提供的上证指数和热门板块（按今日成交额排序）的日线数据，输出一份纯 Markdown 格式的缠论分析报告。
+        prompt = f"""你是一位精通缠中说禅（缠论）的技术分析师。请根据下方提供的上证指数和热门概念板块的日线数据，输出一份纯 Markdown 格式的缠论分析报告。
 
 【要求】
 - 纯 Markdown，禁止 JSON/代码块
@@ -1613,20 +1708,20 @@ Market conditions can change quickly. The data above is for reference only and d
 
 # 输出格式
 
-## 缠论早盘 · 行业趋势
+## 缠论早盘 · 概念趋势
 
-> 一句话总览今日市场缠论状态 + 热门板块轮动方向
+> 一句话总览今日市场缠论状态 + 热门概念轮动方向
 
 ### 上证指数
 - **当前结构**:
 - **关键点位**: 中枢上沿/下沿/支撑/压力
 - **走势分类**: 强/中/弱
 
-### 热门板块（按成交额 Top 5）
+### 热门概念（今日涨幅 Top 5）
 
 {hot_list}
 
-（对每个板块：当前结构+关键点位+走势分类，重点关注二买/三买机会）
+（对每个概念：当前结构+关键点位+走势分类，重点关注二买/三买机会）
 
 ---
 请直接输出报告。

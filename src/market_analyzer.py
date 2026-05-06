@@ -1483,6 +1483,34 @@ Market conditions can change quickly. The data above is for reference only and d
                                                'high': 'high', 'low': 'low', 'volume': 'volume'})
                 df_ss['date'] = pd.to_datetime(df_ss['date'])
                 df_ss = df_ss.sort_values('date').tail(80).copy()
+
+                # 如果最新日期不是今天，用腾讯行情补上今日实时价
+                today_dt = _dt.now()
+                last_date = df_ss['date'].iloc[-1]
+                if last_date.date() < today_dt.date():
+                    try:
+                        import requests
+                        resp = requests.get('http://qt.gtimg.cn/q=sh000001', timeout=10)
+                        resp.encoding = 'gbk'
+                        parts = resp.text.split('~')
+                        if len(parts) > 35:
+                            today_price = float(parts[3])
+                            today_open = float(parts[5]) if parts[5] else today_price
+                            today_high = float(parts[33]) if parts[33] else today_price
+                            today_low = float(parts[34]) if parts[34] else today_price
+                            today_vol = float(parts[36]) if len(parts) > 36 and parts[36] else (
+                                float(parts[6]) if parts[6] else 0)
+                            if today_price > 0:
+                                df_ss = pd.concat([df_ss, pd.DataFrame([{
+                                    'date': pd.Timestamp(today_dt.date()),
+                                    'open': today_open, 'close': today_price,
+                                    'high': today_high, 'low': today_low,
+                                    'volume': today_vol,
+                                }])], ignore_index=True)
+                                logger.info(f"[缠论] 已补充今日实时价: {today_price:.2f}")
+                    except Exception as e:
+                        logger.warning(f"[缠论] 补今日实时价失败: {e}")
+
                 df_ss['ma5'] = df_ss['close'].rolling(5).mean()
                 df_ss['ma10'] = df_ss['close'].rolling(10).mean()
                 df_ss['ma20'] = df_ss['close'].rolling(20).mean()
@@ -1492,40 +1520,59 @@ Market conditions can change quickly. The data above is for reference only and d
                 df_ss['dea'] = dea
                 df_ss['macd_hist'] = hist
                 chan_data.append(_describe_trend(df_ss, '上证指数'))
-                logger.info(f"[缠论] 上证指数: {len(df_ss)} 条日线数据")
+                logger.info(f"[缠论] 上证指数: {len(df_ss)} 条日线数据 (最新: {df_ss['date'].iloc[-1].date()})")
         except Exception as e:
             logger.warning(f"[缠论] 上证指数获取失败: {e}")
 
-        # ---- 2. 热门板块 ----
+        # ---- 2. 热门板块（同花顺数据，按成交额 Top 5）----
         sector_data = []
+        hot_sectors = []
         try:
-            # 获取行业板块排行 Top 3
-            top_sectors, _ = self.data_manager.get_sector_rankings(3)
-            for sec in (top_sectors or [])[:3]:
-                sec_name = sec['name']
-                try:
-                    df_sec = ak.stock_board_industry_hist_em(symbol=sec_name, period='日k')
-                    if df_sec is not None and not df_sec.empty:
-                        df_sec['date'] = pd.to_datetime(df_sec['日期'])
-                        df_sec = df_sec.rename(columns={'开盘': 'open', '收盘': 'close',
-                                                         '最高': 'high', '最低': 'low'})
-                        df_sec = df_sec.sort_values('date').tail(80).copy()
-                        df_sec['ma5'] = df_sec['close'].rolling(5).mean()
-                        df_sec['ma10'] = df_sec['close'].rolling(10).mean()
-                        df_sec['ma20'] = df_sec['close'].rolling(20).mean()
-                        df_sec['ma60'] = df_sec['close'].rolling(60).mean()
-                        dif, dea, hist = _calc_macd(df_sec['close'])
-                        df_sec['dif'] = dif
-                        df_sec['dea'] = dea
-                        df_sec['macd_hist'] = hist
-                        sector_desc = _describe_trend(df_sec, sec_name)
-                        sector_data.append(sector_desc)
-                        chan_data.append(sector_desc)
-                        logger.info(f"[缠论] 板块 {sec_name}: {len(df_sec)} 条日线数据")
-                except Exception as e:
-                    logger.warning(f"[缠论] 板块 {sec_name} 获取失败: {e}")
+            df_ths = ak.stock_board_industry_summary_ths()
+            if df_ths is not None and not df_ths.empty:
+                name_col = '板块'
+                amt_col = '总成交额'
+                df_ths[amt_col] = pd.to_numeric(df_ths[amt_col], errors='coerce')
+                df_valid = df_ths.dropna(subset=[amt_col])
+                top5_hot = df_valid.nlargest(5, amt_col)
+                for _, row in top5_hot.iterrows():
+                    hot_sectors.append(row[name_col])
+                logger.info(f"[缠论] 同花顺热门板块: {hot_sectors}")
         except Exception as e:
-            logger.warning(f"[缠论] 板块排行获取失败: {e}")
+            logger.warning(f"[缠论] 同花顺板块排行获取失败: {e}")
+
+        # 同花顺行业K线拉取
+        all_sector_names = hot_sectors
+        for sec_name in all_sector_names:
+            if sec_name in {d['name'] for d in sector_data}:
+                continue
+            try:
+                df_sec = ak.stock_board_industry_index_ths(
+                    symbol=sec_name,
+                    start_date=(_dt.now() - _td(days=120)).strftime('%Y%m%d'),
+                    end_date=_dt.now().strftime('%Y%m%d'),
+                )
+                if df_sec is not None and not df_sec.empty:
+                    df_sec = df_sec.rename(columns={
+                        '日期': 'date', '开盘价': 'open', '收盘价': 'close',
+                        '最高价': 'high', '最低价': 'low', '成交量': 'volume',
+                    })
+                    df_sec['date'] = pd.to_datetime(df_sec['date'])
+                    df_sec = df_sec.sort_values('date').tail(80).copy()
+                    df_sec['ma5'] = df_sec['close'].rolling(5).mean()
+                    df_sec['ma10'] = df_sec['close'].rolling(10).mean()
+                    df_sec['ma20'] = df_sec['close'].rolling(20).mean()
+                    df_sec['ma60'] = df_sec['close'].rolling(60).mean()
+                    dif, dea, hist = _calc_macd(df_sec['close'])
+                    df_sec['dif'] = dif
+                    df_sec['dea'] = dea
+                    df_sec['macd_hist'] = hist
+                    sector_desc = _describe_trend(df_sec, sec_name)
+                    sector_data.append(sector_desc)
+                    chan_data.append(sector_desc)
+                    logger.info(f"[缠论] 板块 {sec_name}: {len(df_sec)} 条日线数据")
+            except Exception as e:
+                logger.warning(f"[缠论] 板块 {sec_name} 获取失败: {e}")
 
         # ---- 3. 构建 Prompt ----
         if not chan_data:
@@ -1535,7 +1582,8 @@ Market conditions can change quickly. The data above is for reference only and d
         today = _dt.now().strftime('%Y-%m-%d')
         buf = ["# 缠论技术分析数据\n"]
         for d in chan_data:
-            buf.append(f"## {d['name']}")
+            tag = "🔥热门" if d['name'] in hot_sectors else ""
+            buf.append(f"## {d['name']} {tag}")
             buf.append(f"- 收盘价: {d['close']:.2f}")
             buf.append(f"- 均线: MA5={d['ma5']}, MA10={d['ma10']}, MA20={d['ma20']}, MA60={d['ma60']}（{d['alignment']}）")
             buf.append(f"- MACD: DIF={d['dif']}, DEA={d['dea']}（{d['macd_state']}）")
@@ -1546,7 +1594,9 @@ Market conditions can change quickly. The data above is for reference only and d
 
         chan_data_block = "\n".join(buf)
 
-        prompt = f"""你是一位精通缠中说禅（缠论）的技术分析师。请根据下方提供的上证指数和热门板块的日线数据，输出一份纯 Markdown 格式的缠论分析报告。
+        hot_list = "\n".join(f"  - {n}" for n in hot_sectors) if hot_sectors else "（无数据）"
+
+        prompt = f"""你是一位精通缠中说禅（缠论）的技术分析师。请根据下方提供的上证指数和热门板块（按今日成交额排序）的日线数据，输出一份纯 Markdown 格式的缠论分析报告。
 
 【要求】
 - 纯 Markdown，禁止 JSON/代码块
@@ -1563,31 +1613,24 @@ Market conditions can change quickly. The data above is for reference only and d
 
 # 输出格式
 
-## 缠论早盘
+## 缠论早盘 · 行业趋势
 
-> 一句话总览今日各标的缠论状态
+> 一句话总览今日市场缠论状态 + 热门板块轮动方向
 
 ### 上证指数
+- **当前结构**:
+- **关键点位**: 中枢上沿/下沿/支撑/压力
+- **走势分类**: 强/中/弱
 
-- **当前结构**: (描述日线笔/线段/中枢)
-- **关键点位**:
-  - 中枢上沿: xxx
-  - 中枢下沿: xxx
-  - 支撑: xxx
-  - 压力: xxx
-- **走势分类**:
-  - 强: (突破哪个点位确认) → 目标/操作
-  - 中: (什么范围内运行) → 等待/持有
-  - 弱: (跌破哪个点位确认) → 减仓/止损
+### 热门板块（按成交额 Top 5）
 
-### 热门板块
+{hot_list}
 
-**{sector_data[0]['name'] if sector_data else '板块A'}**
-（同上格式）
+（对每个板块：当前结构+关键点位+走势分类，重点关注二买/三买机会）
 
 ---
 请直接输出报告。
-""" if sector_data else prompt.replace('### 热门板块\n', '')
+"""
 
         # ---- 4. LLM 生成 ----
         if not self.analyzer or not self.analyzer.is_available():

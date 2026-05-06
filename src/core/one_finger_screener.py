@@ -170,7 +170,7 @@ class OneFingerStock:
 # ═══════════════════════════════════════════════════════════════
 
 def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
-    """拉取单只股票的日K线（东财→腾讯→baostock），返回标准化的DataFrame"""
+    """拉取单只股票的日K线（yfinance→东财→腾讯→baostock），返回标准化的DataFrame"""
     try:
         import akshare as ak
         from datetime import date
@@ -180,10 +180,25 @@ def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
         ed = end_dt.strftime('%Y%m%d')
 
         df = None
-        # 东财 → 腾讯 → baostock（baostock 放最后，因为慢）
-        for src in ['em', 'tx', 'bs']:
+        # yfinance 优先（全球CDN，GH Actions可用）→ 东财 → 腾讯 → baostock
+        for src in ['yf', 'em', 'tx', 'bs']:
             try:
-                if src == 'em':
+                if src == 'yf':
+                    import yfinance as yf
+                    sym = f'{code}.SS' if code.startswith('6') else f'{code}.SZ'
+                    ticker = yf.Ticker(sym)
+                    df = ticker.history(period=f'{days+30}d')
+                    if df is not None and not df.empty:
+                        df = df.reset_index()
+                        df = df.rename(columns={
+                            'Date': 'date', 'Open': 'open', 'Close': 'close',
+                            'High': 'high', 'Low': 'low', 'Volume': 'volume',
+                        })
+                        df['amount'] = 0
+                        df['amplitude'] = 0.0
+                        df['change_pct'] = df['close'].pct_change() * 100
+                        df['turnover'] = 0.0
+                elif src == 'em':
                     df = ak.stock_zh_a_hist(symbol=code, period='daily', start_date=sd, end_date=ed, adjust='qfq')
                 elif src == 'tx':
                     df = ak.stock_zh_a_hist_tx(symbol=code, start_date=sd, end_date=ed, adjust='qfq')

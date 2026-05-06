@@ -488,8 +488,10 @@ def screen_one_finger_stocks(
 
     # ── STEP 1: 初筛 ──
     import akshare as ak
+
+    # 先试东财（字段全），再试新浪，最后用 baostock+腾讯行情兜底
     snapshot = None
-    # 先试东财（字段最全），失败则降级到新浪
+    src_used = ''
     for src_name, fetch_fn in [
         ('东财', lambda: ak.stock_zh_a_spot_em()),
         ('新浪', lambda: ak.stock_zh_a_spot()),
@@ -497,13 +499,66 @@ def screen_one_finger_stocks(
         try:
             snapshot = fetch_fn()
             if snapshot is not None and not snapshot.empty:
+                src_used = src_name
                 logger.info(f"全A快照({src_name}): {len(snapshot)} 只")
                 break
         except Exception as e:
             logger.warning(f"全A快照({src_name})失败: {e}")
 
+    # 第三兜底: baostock + 腾讯行情
     if snapshot is None or snapshot.empty:
-        logger.error("全A快照获取失败（东财+新浪均不可用）")
+        try:
+            import baostock as bs
+            import requests as _req
+            bs.login()
+            rs = bs.query_stock_basic()
+            all_codes = []
+            while rs.next():
+                row = rs.get_row_data()
+                code_full = row[0]  # e.g. "sh.603095"
+                name = row[1]
+                if 'ST' in name or '指数' in name or code_full.startswith('bj.'):
+                    continue
+                code = code_full.split('.')[-1]
+                all_codes.append((code, name))
+            bs.logout()
+            logger.info(f"baostock 股票列表: {len(all_codes)} 只")
+
+            # 腾讯行情批量拉取（每批80只）
+            import pandas as pd
+            rows = []
+            batch_size = 80
+            for i in range(0, len(all_codes), batch_size):
+                batch = all_codes[i:i+batch_size]
+                tx_parts = [f"{'sh' if c[0]=='6' else 'sz'}{c[0]}" for c in batch]
+                url = f"http://qt.gtimg.cn/q={','.join(tx_parts)}"
+                resp = _req.get(url, timeout=15)
+                resp.encoding = 'gbk'
+                for line in resp.text.strip().split('\n'):
+                    if '~' not in line:
+                        continue
+                    parts = line.split('~')
+                    if len(parts) < 35:
+                        continue
+                    tc = parts[2]  # pure numeric code
+                    price = float(parts[3]) if parts[3] else 0
+                    prev_close = float(parts[4]) if parts[4] else 0
+                    if price > 0 and prev_close > 0:
+                        change_pct = (price - prev_close) / prev_close * 100
+                        rows.append({
+                            '代码': tc, '名称': parts[1], '涨跌幅': change_pct,
+                            '量比': 1.0, '换手率': 0, '所属行业': '',
+                        })
+                if i % (batch_size * 5) == 0:
+                    logger.info(f"  腾讯行情: {i}/{len(all_codes)}")
+            snapshot = pd.DataFrame(rows)
+            src_used = '腾讯行情'
+            logger.info(f"全A快照({src_used}): {len(snapshot)} 只")
+        except Exception as e:
+            logger.error(f"全A快照(baostock+腾讯)失败: {e}")
+
+    if snapshot is None or snapshot.empty:
+        logger.error("全A快照获取失败（所有数据源均不可用）")
         return []
 
     # 涨停池查找表

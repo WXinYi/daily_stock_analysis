@@ -170,65 +170,49 @@ class OneFingerStock:
 # ═══════════════════════════════════════════════════════════════
 
 def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
-    """拉取单只股票的日K线（baostock→东财→腾讯），返回标准化的DataFrame"""
+    """拉取单只股票的日K线（东财→腾讯→baostock），返回标准化的DataFrame"""
     try:
-        import baostock as bs
+        import akshare as ak
         from datetime import date
         end_dt = date.today()
         start_dt = end_dt - timedelta(days=days + 30)
-        sd = start_dt.strftime('%Y-%m-%d')
-        ed = end_dt.strftime('%Y-%m-%d')
-
-        # 格式化代码为 baostock 格式: sh.600000 或 sz.000001
-        if code.startswith('6'):
-            bs_code = f'sh.{code}'
-        else:
-            bs_code = f'sz.{code}'
+        sd = start_dt.strftime('%Y%m%d')
+        ed = end_dt.strftime('%Y%m%d')
 
         df = None
-        # 1) baostock（不依赖 IP，国外可访问）
-        try:
-            bs.login()
-            rs = bs.query_history_k_data_plus(
-                bs_code, 'date,open,close,high,low,volume,amount,amplitude,pctChg,turn',
-                start_date=sd, end_date=ed, frequency='d', adjustflag='2',
-            )
-            if rs.error_code == '0':
-                rows = []
-                while rs.next():
-                    rows.append(rs.get_row_data())
-                if rows:
-                    import pandas as pd
-                    df = pd.DataFrame(rows, columns=['date','open','close','high','low','volume','amount','amplitude','change_pct','turnover'])
-                    for col in ['open','close','high','low','volume','amount','amplitude','change_pct','turnover']:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    df = df.dropna(subset=['close'])
-            bs.logout()
-        except Exception:
-            pass
-
-        # 2) 东财降级
-        if df is None or df.empty:
+        # 东财 → 腾讯 → baostock（baostock 放最后，因为慢）
+        for src in ['em', 'tx', 'bs']:
             try:
-                import akshare as ak
-                df = ak.stock_zh_a_hist(symbol=code, period='daily',
-                    start_date=sd.replace('-',''), end_date=ed.replace('-',''), adjust='qfq')
+                if src == 'em':
+                    df = ak.stock_zh_a_hist(symbol=code, period='daily', start_date=sd, end_date=ed, adjust='qfq')
+                elif src == 'tx':
+                    df = ak.stock_zh_a_hist_tx(symbol=code, start_date=sd, end_date=ed, adjust='qfq')
+                else:
+                    # baostock — 重置连接避免状态问题
+                    import baostock as bs
+                    bs_code = f'sh.{code}' if code.startswith('6') else f'sz.{code}'
+                    bs.login()
+                    rs = bs.query_history_k_data_plus(bs_code,
+                        'date,open,close,high,low,volume,amount,amplitude,pctChg,turn',
+                        start_date=start_dt.strftime('%Y-%m-%d'), end_date=end_dt.strftime('%Y-%m-%d'),
+                        frequency='d', adjustflag='2')
+                    if rs.error_code == '0':
+                        rows = []
+                        while rs.next():
+                            rows.append(rs.get_row_data())
+                        if rows:
+                            df = pd.DataFrame(rows, columns=['date','open','close','high','low','volume','amount','amplitude','change_pct','turnover'])
+                            for col in ['open','close','high','low','volume','amount','amplitude','change_pct','turnover']:
+                                df[col] = pd.to_numeric(df[col], errors='coerce')
+                            df = df.dropna(subset=['close'])
+                    bs.logout()
+                if df is not None and not df.empty:
+                    break
             except Exception:
-                pass
-
-        # 3) 腾讯降级
-        if df is None or df.empty:
-            try:
-                import akshare as ak
-                df = ak.stock_zh_a_hist_tx(symbol=code,
-                    start_date=sd.replace('-',''), end_date=ed.replace('-',''), adjust='qfq')
-            except Exception:
-                pass
+                continue
 
         if df is None or df.empty:
             return None
-
-        # 统一列名
         df = df.rename(columns={
             '日期': 'date', '开盘': 'open', '收盘': 'close',
             '最高': 'high', '最低': 'low', '成交量': 'volume',
@@ -242,7 +226,7 @@ def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
         return None
 
 
-def _batch_fetch_klines(codes: List[str], max_workers: int = 12, days: int = 60) -> Dict[str, pd.DataFrame]:
+def _batch_fetch_klines(codes: List[str], max_workers: int = 20, days: int = 60) -> Dict[str, pd.DataFrame]:
     """并行拉取多只股票的日K线"""
     results = {}
     failed = 0
@@ -251,7 +235,7 @@ def _batch_fetch_klines(codes: List[str], max_workers: int = 12, days: int = 60)
         for f in as_completed(futures):
             code = futures[f]
             try:
-                df = f.result(timeout=15)
+                df = f.result(timeout=30)
                 if df is not None and not df.empty:
                     results[code] = df
                 else:

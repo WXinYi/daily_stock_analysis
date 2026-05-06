@@ -160,6 +160,16 @@ class CustomWebhookSender:
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         response = requests.post(signed_url, data=body, headers=headers, timeout=timeout, verify=self._webhook_verify_ssl)
         if response.status_code == 200:
+            # 钉钉需要检查响应体中的 errcode
+            if self._is_dingtalk_webhook(url):
+                try:
+                    resp_data = response.json()
+                    errcode = resp_data.get('errcode', -1)
+                    if errcode != 0:
+                        logger.error(f"钉钉推送失败: errcode={errcode} errmsg={resp_data.get('errmsg', 'unknown')}")
+                        return False
+                except (ValueError, AttributeError):
+                    pass
             return True
         logger.error(f"自定义 Webhook 推送失败: HTTP {response.status_code}")
         logger.debug(f"响应内容: {response.text[:200]}")

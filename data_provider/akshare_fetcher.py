@@ -1773,22 +1773,37 @@ class AkshareFetcher(BaseFetcher):
             ]
             return top_sectors, bottom_sectors
         
-        # 优先东财接口
+        # 优先同花顺（行业名称最规范：贵金属/半导体/小金属...）
         try:
             self._set_random_user_agent()
             self._enforce_rate_limit()
 
-            logger.info("[API调用] ak.stock_board_industry_name_em() 获取板块排行...")
+            logger.info("[API调用] ak.stock_board_industry_summary_ths() 获取板块排行(同花顺)...")
+            df = ak.stock_board_industry_summary_ths()
+            if df is not None and not df.empty:
+                change_col = '涨跌幅'
+                name = '板块'
+                return _get_rank_top_n(df, change_col, name, n)
+
+        except Exception as e:
+            logger.warning(f"[Akshare] 同花顺接口获取板块排行失败: {e}，尝试东财接口")
+
+        # 降级东财接口
+        try:
+            self._set_random_user_agent()
+            self._enforce_rate_limit()
+
+            logger.info("[API调用] ak.stock_board_industry_name_em() 获取板块排行(东财)...")
             df = ak.stock_board_industry_name_em()
             if df is not None and not df.empty:
                 change_col = '涨跌幅'
                 name = '板块名称'
                 return _get_rank_top_n(df, change_col, name, n)
-            
+
         except Exception as e:
             logger.warning(f"[Akshare] 东财接口获取行业板块排行失败: {e}，尝试新浪接口")
 
-        # 东财失败后，尝试新浪接口
+        # 降级新浪接口
         try:
             self._set_random_user_agent()
             self._enforce_rate_limit()
@@ -1802,22 +1817,7 @@ class AkshareFetcher(BaseFetcher):
             return _get_rank_top_n(df, change_col, name, n)
 
         except Exception as e:
-            logger.warning(f"[Akshare] 新浪接口获取板块排行失败: {e}，尝试同花顺接口")
-
-        # 新浪失败后，尝试同花顺接口（行业名称更规范，IP 限制较宽松）
-        try:
-            self._set_random_user_agent()
-            self._enforce_rate_limit()
-
-            logger.info("[API调用] ak.stock_board_industry_summary_ths() 获取板块排行(同花顺)...")
-            df = ak.stock_board_industry_summary_ths()
-            if df is not None and not df.empty:
-                change_col = '涨跌幅'
-                name = '板块'
-                return _get_rank_top_n(df, change_col, name, n)
-
-        except Exception as e:
-            logger.error(f"[Akshare] 同花顺接口获取板块排行也失败: {e}")
+            logger.error(f"[Akshare] 新浪接口获取板块排行也失败: {e}")
             return None
 
 

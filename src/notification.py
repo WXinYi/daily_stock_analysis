@@ -18,6 +18,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 from src.config import get_config
 from src.analyzer import AnalysisResult
@@ -1582,7 +1583,7 @@ class NotificationService(
         """
         # 统一加水印
         from datetime import datetime as _dt
-        watermark = f"\n\n---\n*Strategy by Wxy · {_dt.now().strftime('%Y-%m-%d')}*\n"
+        watermark = f"\n\n---\n*Strategy by Wxy · {_dt.now(tz=ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S')}*\n"
         if watermark.strip() not in content:
             content = content.rstrip() + watermark
 

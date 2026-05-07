@@ -46,6 +46,21 @@ jobs:
           LOG_LEVEL: INFO
         run: python main.py --one-finger --force-run
 
+      - name: 选股结果存档
+        if: success()
+        run: |
+          python scripts/archive_picks.py --type one-finger
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/${{ github.repository }}.git
+          git add data/one_finger_picks_history.json
+          if git diff --cached --quiet; then
+            echo "无新增数据，跳过 commit"
+          else
+            git commit -m "archive: update one-finger picks history [skip ci]"
+            git push origin main
+          fi
+
       - name: 显示运行结果
         if: always()
         run: |

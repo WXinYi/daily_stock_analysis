@@ -16,5 +16,77 @@
     "close_price": 13.56,
     "entry_line": "运行中",
     "date": "2026-05-08"
+  },
+  {
+    "code": "600130",
+    "name": "波导股份",
+    "consecutive": 3,
+    "industry": "消费电子",
+    "close_price": 6.15,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "603278",
+    "name": "大业股份",
+    "consecutive": 3,
+    "industry": "通用设备",
+    "close_price": 14.91,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "600936",
+    "name": "北投科技",
+    "consecutive": 2,
+    "industry": "IT服务Ⅱ",
+    "close_price": 5.17,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "002642",
+    "name": "荣联科技",
+    "consecutive": 1,
+    "industry": "IT服务Ⅱ",
+    "close_price": 9.08,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "600536",
+    "name": "中国软件",
+    "consecutive": 1,
+    "industry": "IT服务Ⅱ",
+    "close_price": 43.45,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "920270",
+    "name": "天铭科技",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 20.64,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "300488",
+    "name": "恒锋工具",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 41.56,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "002965",
+    "name": "祥鑫科技",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 34.93,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
   }
 ]

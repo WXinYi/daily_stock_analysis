@@ -1,0 +1,122 @@
+[
+  {
+    "code": "600610",
+    "name": "中毅达",
+    "quality": "B",
+    "close_price": 10.34000015258789,
+    "change_pct": 10.0,
+    "body_ratio": 0.9126221143242845,
+    "vol_ratio_5d": 4.670048273456046,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.05303862233370318,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "600936",
+    "name": "北投科技",
+    "quality": "B",
+    "close_price": 4.699999809265137,
+    "change_pct": 10.07,
+    "body_ratio": 0.9523809523809523,
+    "vol_ratio_5d": 4.638170520432009,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.0997442701644643,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "600969",
+    "name": "郴电国际",
+    "quality": "B",
+    "close_price": 10.9399995803833,
+    "change_pct": 8.86,
+    "body_ratio": 0.7777764041739113,
+    "vol_ratio_5d": 3.9077334121597884,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.08427550740768766,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "002298",
+    "name": "中电鑫龙",
+    "quality": "B",
+    "close_price": 11.109999656677246,
+    "change_pct": 10.0,
+    "body_ratio": 0.9009905944983339,
+    "vol_ratio_5d": 3.461001546847629,
+    "prior_trend": "DOWNTREND",
+    "consolidation_range": 0.09663855865357221,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "000509",
+    "name": "华塑控股",
+    "quality": "B",
+    "close_price": 3.930000066757202,
+    "change_pct": 10.08,
+    "body_ratio": 0.9473684870965394,
+    "vol_ratio_5d": 3.399579465797889,
+    "prior_trend": "DOWNTREND",
+    "consolidation_range": 0.07941175686859364,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "603636",
+    "name": "南威软件",
+    "quality": "B",
+    "close_price": 10.100000381469727,
+    "change_pct": 10.02,
+    "body_ratio": 0.8900003433227539,
+    "vol_ratio_5d": 3.0744181261721124,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.07454123837449718,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "002317",
+    "name": "众生药业",
+    "quality": "B",
+    "close_price": 20.489999771118164,
+    "change_pct": 9.98,
+    "body_ratio": 0.935483440937841,
+    "vol_ratio_5d": 2.7820931263508184,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.09491515962783212,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "688188",
+    "name": "柏楚电子",
+    "quality": "B",
+    "close_price": 154.5500030517578,
+    "change_pct": 8.36,
+    "body_ratio": 0.9004977453426523,
+    "vol_ratio_5d": 2.525489163924156,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.07890113535731516,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "300398",
+    "name": "飞凯材料",
+    "quality": "C",
+    "close_price": 35.81999969482422,
+    "change_pct": 13.46,
+    "body_ratio": 0.7063708603673099,
+    "vol_ratio_5d": 2.3065655913973457,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.09972858454413526,
+    "date": "2026-05-07"
+  },
+  {
+    "code": "301024",
+    "name": "霍普股份",
+    "quality": "C",
+    "close_price": 43.47999954223633,
+    "change_pct": 8.29,
+    "body_ratio": 0.7762238384061135,
+    "vol_ratio_5d": 2.304239683376404,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_range": 0.09238426272113215,
+    "date": "2026-05-07"
+  }
+]

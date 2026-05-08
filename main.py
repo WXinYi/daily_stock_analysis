@@ -1131,6 +1131,7 @@ def main() -> int:
                 limit_up_pool=limit_up_pool,
                 top_sectors=top_sectors,
                 bottom_sectors=bottom_sectors,
+                guard_score=guard_result.get('score', 100),
             )
 
             # 生成报告

@@ -42,6 +42,18 @@ CONSOLIDATION_PERIOD = 10       # 盘整期长度（交易日）
 MAX_CONSOLIDATION_RANGE = 0.10  # 盘整区最大振幅 10%
 KLINE_BODY_RATIO = 0.70         # 实体占总振幅比例 ≥ 70%
 PRIOR_TREND_LOOKBACK = 20       # 前期趋势回看天数
+KLINE_FETCH_DAYS = 80           # K线拉取天数（需覆盖MA60+盘整+前期趋势）
+MIN_TURNOVER = 2.0              # 初筛最低换手率
+MAX_TURNOVER = 20.0             # 初筛最高换手率
+A_GRADE_VOL_RATIO = 3.5         # A级量能倍数
+A_GRADE_BODY_RATIO = 0.85       # A级实体占比
+B_GRADE_VOL_RATIO = 2.5         # B级量能倍数
+B_GRADE_BODY_RATIO = 0.75       # B级实体占比
+MAX_LOWER_SHADOW = 0.20         # 下影线占比上限
+MAX_UPPER_SHADOW = 0.25         # 上影线占比上限
+PINCH_BODY_RATIO_MAX = 0.50     # 前日收窄：实体占比上限
+PINCH_RANGE_MAX = 0.03          # 前日收窄：振幅上限
+MA_STICKY_MAX = 0.03            # 均线粘合：最大离散度
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -153,8 +165,17 @@ class OneFingerStock:
     consolidation_high: float = 0.0
     consolidation_low: float = 0.0
     consolidation_range: float = 0.0  # 盘整区振幅
+    vol_contracting: bool = False     # 盘整区后段缩量
     # 前期趋势
     prior_trend: str = ""          # "DOWNTREND" | "CONSOLIDATION" | "UPTREND(排除)"
+    # 一阳K线增强指标
+    lower_shadow_ratio: float = 0.0   # 下影线/总振幅
+    upper_shadow_ratio: float = 0.0   # 上影线/总振幅
+    ma_penetrations: int = 0          # 穿透均线条数
+    prev_day_pinching: bool = False   # 前日收窄
+    ma_sticky: bool = False           # 均线粘合
+    sector_in_top: bool = False       # 板块共振
+    guard_score: int = 100            # 大盘安检分数
     # 买卖参考
     entry_zone: str = ""
     stop_loss: str = ""
@@ -169,7 +190,7 @@ class OneFingerStock:
 # K-Line Fetching
 # ═══════════════════════════════════════════════════════════════
 
-def _fetch_single_kline(code: str, days: int = 60) -> Optional[pd.DataFrame]:
+def _fetch_single_kline(code: str, days: int = KLINE_FETCH_DAYS) -> Optional[pd.DataFrame]:
     """拉取单只股票的日K线（yfinance→东财→腾讯→baostock），返回标准化的DataFrame"""
     try:
         import akshare as ak
@@ -381,14 +402,21 @@ def identify_consolidation_zone(df: pd.DataFrame) -> Tuple[bool, float, float, f
     min_low = float(lookback['low'].min())
 
     if min_low <= 0:
-        return False, 0, 0, 0
+        return False, 0, 0, 0, False
 
     total_range = (max_high - min_low) / min_low
 
     # 振幅 <= 10% 判定为盘整
     is_consolidating = total_range <= MAX_CONSOLIDATION_RANGE
 
-    return is_consolidating, max_high, min_low, total_range
+    # 量能收缩：盘整区后5天均量 < 前5天均量（供给被吸收）
+    vol_contracting = False
+    if is_consolidating and len(lookback) >= 10:
+        front_vol = float(lookback['volume'].iloc[:5].mean())
+        back_vol = float(lookback['volume'].iloc[5:].mean())
+        vol_contracting = back_vol < front_vol if front_vol > 0 else False
+
+    return is_consolidating, max_high, min_low, total_range, vol_contracting
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -498,6 +526,59 @@ def validate_one_yang_kline(df: pd.DataFrame, consolidation_high: float) -> Tupl
 
 
 # ═══════════════════════════════════════════════════════════════
+# Enhanced Analysis Functions (Optimizations)
+# ═══════════════════════════════════════════════════════════════
+
+def _count_ma_penetrations(closes: pd.Series, O: float, C: float) -> int:
+    """统计大阳线实体穿透了多少条关键均线（MA6/MA10/MA21/MA60）。"""
+    mas = {'MA6': 6, 'MA10': 10, 'MA21': 21, 'MA60': 60}
+    penetrated = 0
+    for ma_name, period in mas.items():
+        ma_val = _calc_ma(closes, period)
+        if ma_val is not None and O < ma_val < C:
+            penetrated += 1
+    return penetrated
+
+
+def _check_prev_day_pinching(df: pd.DataFrame) -> bool:
+    """检查前日K线是否极致收敛（盘整末端信号）。"""
+    if len(df) < 2:
+        return False
+    prev = df.iloc[-2]
+    prev_O = float(prev['open'])
+    prev_C = float(prev['close'])
+    prev_H = float(prev['high'])
+    prev_L = float(prev['low'])
+    if prev_H <= prev_L or prev_L <= 0:
+        return False
+    prev_range = (prev_H - prev_L) / prev_L
+    prev_body = abs(prev_C - prev_O) / (prev_H - prev_L)
+    return prev_range < PINCH_RANGE_MAX and prev_body < PINCH_BODY_RATIO_MAX
+
+
+def _calc_shadow_ratios(O: float, C: float, H: float, L: float) -> Tuple[float, float]:
+    """计算上下影线占比。返回 (lower_shadow_ratio, upper_shadow_ratio)。"""
+    total_range = H - L
+    if total_range <= 0:
+        return 1.0, 1.0
+    lower_shadow = (min(O, C) - L) / total_range
+    upper_shadow = (H - max(O, C)) / total_range
+    return lower_shadow, upper_shadow
+
+
+def _calc_ma_stickiness(closes: pd.Series, close_today: float) -> Tuple[bool, float]:
+    """计算MA5/MA10/MA21的粘合度。返回 (is_sticky, spread_pct)。"""
+    ma5 = _calc_ma(closes, 5)
+    ma10 = _calc_ma(closes, 10)
+    ma21_val = _calc_ma(closes, 21)
+    if ma5 is None or ma10 is None or ma21_val is None or close_today <= 0:
+        return False, 1.0
+    ma_values = [ma5, ma10, ma21_val]
+    spread = (max(ma_values) - min(ma_values)) / close_today
+    return spread < MA_STICKY_MAX, spread
+
+
+# ═══════════════════════════════════════════════════════════════
 # Main Screener
 # ═══════════════════════════════════════════════════════════════
 
@@ -505,6 +586,7 @@ def screen_one_finger_stocks(
     limit_up_pool: Optional[List[Dict]] = None,
     top_sectors: Optional[List[Dict]] = None,
     bottom_sectors: Optional[List[Dict]] = None,
+    guard_score: int = 100,
     max_candidates: int = 200,
 ) -> List[OneFingerStock]:
     """
@@ -579,9 +661,11 @@ def screen_one_finger_stocks(
                     prev_close = float(parts[4]) if parts[4] else 0
                     if price > 0 and prev_close > 0:
                         change_pct = (price - prev_close) / prev_close * 100
+                        turn_over = float(parts[37]) if len(parts) > 37 and parts[37] else 0
+                        industry = parts[56].strip() if len(parts) > 56 and parts[56] and parts[56].strip() not in ('GP-A', 'GP') else ''
                         rows.append({
                             '代码': tc, '名称': parts[1], '涨跌幅': change_pct,
-                            '量比': 1.0, '换手率': 0, '所属行业': '',
+                            '量比': 1.0, '换手率': turn_over, '所属行业': industry,
                         })
                 if i % (batch_size * 5) == 0:
                     logger.info(f"  腾讯行情: {i}/{len(all_codes)}")
@@ -605,16 +689,19 @@ def screen_one_finger_stocks(
                 'name': s.get('name', ''),
             }
 
-    # 初筛：涨幅>5% + 非ST（兼容东财/新浪两种列名）
+    # 初筛：涨幅>5% + 非ST + 换手率(有数据时)（兼容东财/新浪两种列名）
     candidates = []
+    turnover_available = False  # 检测是否有换手率数据
     for _, row in snapshot.iterrows():
         code = str(row.get('代码', '')).strip()
         name = str(row.get('名称', '')).strip()
         change_pct = float(row.get('涨跌幅', 0) or 0)
-        # 新浪接口无量比/换手率/行业字段
         volume_ratio = float(row.get('量比', 1.0) or 1.0)
         turn_over = float(row.get('换手率', 0) or 0)
         industry = str(row.get('所属行业', '') or '')
+
+        if turn_over > 0:
+            turnover_available = True
 
         # 新浪代码带前缀（bj920000/sh603095/sz002081），去掉前2位
         if code[:2] in ('bj', 'sh', 'sz', 'BJ', 'SH', 'SZ'):
@@ -635,7 +722,12 @@ def screen_one_finger_stocks(
             'consecutive_limit': limit_up_map.get(code, {}).get('consecutive', 0),
         })
 
-    logger.info(f"STEP1 初筛: {len(candidates)} 只 (涨幅≥5%, 非ST)")
+    # 换手率过滤（仅当数据源提供换手率时生效）
+    if turnover_available:
+        candidates = [c for c in candidates if MIN_TURNOVER <= c['turn_over'] <= MAX_TURNOVER]
+        logger.info(f"STEP1 初筛(含换手率{MIN_TURNOVER}-{MAX_TURNOVER}%): {len(candidates)} 只")
+    else:
+        logger.info(f"STEP1 初筛(换手率数据不可用): {len(candidates)} 只")
 
     if not candidates:
         logger.info("无候选股")
@@ -647,10 +739,17 @@ def screen_one_finger_stocks(
         candidates = candidates[:max_candidates]
         logger.info(f"截取前{max_candidates}只候选股")
 
-    # ── STEP 2: 精选（五个维度逐一校验）──
+    # ── 构建板块共振查找表 ──
+    sector_top_set: set = set()
+    if top_sectors:
+        for s in top_sectors:
+            name = s[0] if isinstance(s, (tuple, list)) else (s.get('name', '') if isinstance(s, dict) else str(s))
+            sector_top_set.add(name)
+
+    # ── STEP 2: 精选（多维校验）──
     codes = [c['code'] for c in candidates]
     logger.info(f"并行拉取 {len(codes)} 只K线...")
-    kline_map = _batch_fetch_klines(codes, max_workers=12, days=60)
+    kline_map = _batch_fetch_klines(codes, max_workers=12, days=KLINE_FETCH_DAYS)
     logger.info(f"成功拉取 {len(kline_map)} 只K线")
 
     results: List[OneFingerStock] = []
@@ -668,8 +767,8 @@ def screen_one_finger_stocks(
         if not ma_ok:
             continue
 
-        # 2.2 识别盘整区
-        is_consolidating, cons_high, cons_low, cons_range = identify_consolidation_zone(df)
+        # 2.2 识别盘整区 + 量能收缩
+        is_consolidating, cons_high, cons_low, cons_range, vol_contracting = identify_consolidation_zone(df)
         conditions['consolidation'] = is_consolidating
         if not is_consolidating:
             continue
@@ -689,46 +788,163 @@ def screen_one_finger_stocks(
         if not kline_ok:
             continue
 
-        # ── 质量评级 ──
-        quality = 'C'
-        reasons = []
+        # ── 增强指标计算 ──
+        O = float(df['open'].iloc[-1])
+        C = float(df['close'].iloc[-1])
+        H = float(df['high'].iloc[-1])
+        L = float(df['low'].iloc[-1])
+        closes_series = df['close']
+
+        # 一阳穿多线
+        ma_penetrations = _count_ma_penetrations(closes_series, O, C)
+
+        # 前日收窄
+        prev_pinching = _check_prev_day_pinching(df)
+
+        # 影线占比
+        lower_shadow, upper_shadow = _calc_shadow_ratios(O, C, H, L)
+        shadow_ok = lower_shadow <= MAX_LOWER_SHADOW and upper_shadow <= MAX_UPPER_SHADOW
+
+        # 均线粘合
+        ma_sticky, ma_spread = _calc_ma_stickiness(closes_series, C)
+
+        # 板块共振（有行业数据时）
+        sector_in_top = False
+        ind = c.get('industry', '')
+        if ind and sector_top_set:
+            sector_in_top = ind in sector_top_set or any(
+                ind in tn or tn in ind for tn in sector_top_set
+            )
+
+        # ── 多维度质量评级 ──
         vol_r = metrics['vol_ratio_5d']
         body_r = metrics['body_ratio']
+        turn_over = c['turn_over']
+        # guard_score 来自 MarketGuard（外部传入）
 
-        if vol_r >= 3.5 and body_r >= 0.85 and trend_label == 'DOWNTREND':
-            quality = 'A'
-            reasons = ['超强放量', '实体饱满', '下跌后转折']
-        elif vol_r >= 2.5 and body_r >= 0.75:
-            quality = 'B'
-            reasons = ['放量充分', '实体扎实']
+        # 打分细则（每项通过+1）
+        score = 0
+        reasons = []
+        score_details = []
+
+        # 量能维度
+        if vol_r >= A_GRADE_VOL_RATIO:
+            score += 2; reasons.append('超强放量'); score_details.append(f'量能{(vol_r*100):.0f}%')
+        elif vol_r >= B_GRADE_VOL_RATIO:
+            score += 1; reasons.append('放量充分'); score_details.append(f'量能{(vol_r*100):.0f}%')
+
+        # 实体维度
+        if body_r >= A_GRADE_BODY_RATIO:
+            score += 2; reasons.append('实体饱满'); score_details.append(f'实体{(body_r*100):.0f}%')
+        elif body_r >= B_GRADE_BODY_RATIO:
+            score += 1; reasons.append('实体扎实')
+
+        # 影线维度
+        if shadow_ok:
+            score += 1; reasons.append('影线健康')
         else:
-            quality = 'C'
-            if vol_r < 2.5:
-                reasons.append('量能偏弱')
-            if body_r < 0.80:
-                reasons.append('实体稍短')
+            if lower_shadow > MAX_LOWER_SHADOW:
+                reasons.append('下影偏长')
+            if upper_shadow > MAX_UPPER_SHADOW:
+                reasons.append('上影偏长')
+
+        # 趋势维度（下跌后转折最强）
+        if trend_label == 'DOWNTREND':
+            score += 2; reasons.append('下跌转折')
+        elif trend_label == 'CONSOLIDATION':
+            score += 1
+
+        # 盘整质量维度
+        if vol_contracting:
+            score += 1; reasons.append('盘整缩量蓄力')
+
+        # 均线维度
+        if ma_penetrations >= 3:
+            score += 2; reasons.append(f'一阳穿{ma_penetrations}线')
+        elif ma_penetrations >= 2:
+            score += 1; reasons.append(f'穿透{ma_penetrations}线')
+
+        if ma_sticky:
+            score += 1; reasons.append('均线粘合')
+
+        # 前日形态
+        if prev_pinching:
+            score += 1; reasons.append('前日收窄')
+
+        # 换手率维度（有数据时）
+        if turn_over >= 3 and turn_over <= 15:
+            score += 1; reasons.append('换手适中')
+
+        # 板块共振
+        if sector_in_top:
+            score += 1; reasons.append('板块共振')
+
+        # ── 大盘环境软分级 ──
+        guard_tier = ''
+        if guard_score >= 80:
+            guard_tier = 'warm'
+            # 大盘偏暖：B/C 门槛略放宽
+            if score >= 5:
+                reasons.append('大盘偏暖')
+        elif guard_score < 40:
+            guard_tier = 'cold'
+            reasons.append('⚠️大盘偏冷')
+            # 大盘偏冷：A 级独立性反而加分
+            if trend_label == 'DOWNTREND' and vol_r >= B_GRADE_VOL_RATIO:
+                score += 1
+                reasons.append('逆势抗跌')
+
+        # ── 定级 ──
+        if guard_tier == 'warm':
+            # 暖市：B/C门槛各降1分
+            if score >= 9:
+                quality = 'A'
+            elif score >= 5:
+                quality = 'B'
+            else:
+                quality = 'C'
+        elif guard_tier == 'cold':
+            # 冷市：A门槛维持，B门槛提高
+            if score >= 10:
+                quality = 'A'
+            elif score >= 7:
+                quality = 'B'
+            else:
+                quality = 'C'
+        else:
+            if score >= 10:
+                quality = 'A'
+            elif score >= 6:
+                quality = 'B'
+            else:
+                quality = 'C'
 
         # 买卖参考
         stop_loss = round(cons_low * 0.97, 2)
         entry_low = round(cons_high, 2)
-        entry_high = round(float(df['close'].iloc[-1]) * 1.02, 2)
+        entry_high = round(C * 1.02, 2)
 
         results.append(OneFingerStock(
             code=code, name=c['name'],
-            close=float(df['close'].iloc[-1]),
-            open=float(df['open'].iloc[-1]),
-            high=float(df['high'].iloc[-1]),
-            low=float(df['low'].iloc[-1]),
+            close=C, open=O, high=H, low=L,
             change_pct=c['change_pct'],
-            body_ratio=metrics['body_ratio'],
-            vol_ratio_5d=metrics['vol_ratio_5d'],
-            turn_over=c['turn_over'],
+            body_ratio=body_r,
+            vol_ratio_5d=vol_r,
+            turn_over=turn_over,
             industry=c['industry'],
             is_limit_up=c['is_limit_up'],
             consolidation_high=cons_high,
             consolidation_low=cons_low,
             consolidation_range=cons_range,
+            vol_contracting=vol_contracting,
             prior_trend=trend_label,
+            lower_shadow_ratio=lower_shadow,
+            upper_shadow_ratio=upper_shadow,
+            ma_penetrations=ma_penetrations,
+            prev_day_pinching=prev_pinching,
+            ma_sticky=ma_sticky,
+            sector_in_top=sector_in_top,
+            guard_score=guard_score,
             entry_zone=f"{entry_low:.2f}~{entry_high:.2f}",
             stop_loss=f"{stop_loss:.2f}（盘整低{cons_low:.2f}下方3%）",
             quality=quality,
@@ -736,16 +952,21 @@ def screen_one_finger_stocks(
             conditions=conditions,
         ))
 
-    # 按质量排序
+    # 按质量排序（score隐含在quality中，同级别按量能排序）
     quality_order = {'A': 0, 'B': 1, 'C': 2}
     results.sort(key=lambda s: (quality_order.get(s.quality, 9), -s.vol_ratio_5d))
 
+    a_count = len([r for r in results if r.quality == 'A'])
+    b_count = len([r for r in results if r.quality == 'B'])
+    c_count = len([r for r in results if r.quality == 'C'])
     logger.info(
         f"STEP2 精选完成: {len(results)} 只 "
-        f"(A级{len([r for r in results if r.quality=='A'])}只, "
-        f"B级{len([r for r in results if r.quality=='B'])}只, "
-        f"C级{len([r for r in results if r.quality=='C'])}只)"
+        f"(A级{a_count}只, B级{b_count}只, C级{c_count}只)"
     )
+    if a_count > 0:
+        a_stocks = [(r.name, r.code, r.quality_reasons) for r in results if r.quality == 'A']
+        for name, code, reasons_str in a_stocks:
+            logger.info(f"  🏆 A级: {name}({code}) — {', '.join(reasons_str)}")
 
     return results
 
@@ -846,24 +1067,32 @@ def build_one_finger_report(
 
 
 def _stock_condition_line(idx: int, s: OneFingerStock) -> str:
-    """单行格式：股票 + 板块 + 八条件检查清单 + 入场/止损"""
+    """单行格式：股票 + 关键指标 + 入场/止损"""
     label = ["①", "②", "③", "④", "⑤"][idx]
     industry = s.industry if s.industry else "—"
 
-    c = s.conditions
-    checks = [
-        "✅均线" if c.get('ma_system') else "❌均线",
-        "✅盘整" if c.get('consolidation') else "❌盘整",
-        "✅非高位" if c.get('prior_trend') else "❌高位",
-        "✅大阳" if c.get('big_yang') else "❌大阳",
-        "✅实体" if c.get('solid_body') else "❌实体",
-        "✅放量" if c.get('heavy_volume') else "❌放量",
-        "✅突破" if c.get('breakout') else "❌突破",
-    ]
+    # 关键指标（替换掉无意义的✅清单）
+    metrics = []
+    metrics.append(f"量{(s.vol_ratio_5d*100):.0f}%")      # 量能倍数
+    metrics.append(f"实体{(s.body_ratio*100):.0f}%")       # 实体占比
+    if s.turn_over > 0:
+        metrics.append(f"换手{s.turn_over:.1f}%")          # 换手率
+    if s.ma_penetrations >= 2:
+        metrics.append(f"穿{s.ma_penetrations}线")         # 均线穿透
+    if s.vol_contracting:
+        metrics.append("缩量蓄力")
+    if s.prev_day_pinching:
+        metrics.append("前日收窄")
+    if s.ma_sticky:
+        metrics.append("均线粘合")
+    if s.sector_in_top:
+        metrics.append("板块共振")
+    if s.prior_trend == 'DOWNTREND':
+        metrics.append("下跌转折")
 
     return (
         f"{label} **{s.name}**({s.code}) +{s.change_pct:.1f}% | {industry}\n"
-        f"   {' '.join(checks)} | 入场{s.consolidation_high:.2f}~{s.close*1.02:.2f} 止损{s.consolidation_low*0.97:.2f}"
+        f"   {' · '.join(metrics)} | 入场{s.consolidation_high:.2f} 止损{s.stop_loss.split('（')[0]}"
     )
 
 
@@ -879,12 +1108,19 @@ def save_one_finger_picks(stocks: List[OneFingerStock], filepath: str = "data/on
             'code': s.code,
             'name': s.name,
             'quality': s.quality,
+            'score_reasons': s.quality_reasons,
             'close_price': s.close,
             'change_pct': s.change_pct,
             'body_ratio': s.body_ratio,
             'vol_ratio_5d': s.vol_ratio_5d,
             'prior_trend': s.prior_trend,
             'consolidation_range': s.consolidation_range,
+            'vol_contracting': s.vol_contracting,
+            'ma_penetrations': s.ma_penetrations,
+            'prev_day_pinching': s.prev_day_pinching,
+            'ma_sticky': s.ma_sticky,
+            'sector_in_top': s.sector_in_top,
+            'turn_over': s.turn_over,
             'date': datetime.now().strftime('%Y-%m-%d'),
         })
     try:

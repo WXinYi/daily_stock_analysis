@@ -53,7 +53,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/${{ github.repository }}.git
-          git add data/one_finger_picks_history.json
+          git add -f data/one_finger_picks_history.json
           if git diff --cached --quiet; then
             echo "无新增数据，跳过 commit"
           else

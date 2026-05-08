@@ -1,0 +1,20 @@
+[
+  {
+    "code": "000066",
+    "name": "中国长城",
+    "consecutive": 3,
+    "industry": "计算机设",
+    "close_price": 23.98,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  },
+  {
+    "code": "000700",
+    "name": "模塑科技",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 13.56,
+    "entry_line": "运行中",
+    "date": "2026-05-08"
+  }
+]

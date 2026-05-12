@@ -1,5 +1,104 @@
 [
   {
+    "code": "601991",
+    "name": "大唐发电",
+    "consecutive": 4,
+    "industry": "电力",
+    "close_price": 6.09,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "002491",
+    "name": "通鼎互联",
+    "consecutive": 3,
+    "industry": "通信设备",
+    "close_price": 22.73,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "603738",
+    "name": "泰晶科技",
+    "consecutive": 3,
+    "industry": "元件",
+    "close_price": 51.71,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "002552",
+    "name": "宝鼎科技",
+    "consecutive": 3,
+    "industry": "通用设备",
+    "close_price": 30.42,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "688618",
+    "name": "三旺通信",
+    "consecutive": 1,
+    "industry": "通信设备",
+    "close_price": 46.8,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "000791",
+    "name": "甘肃能源",
+    "consecutive": 1,
+    "industry": "电力",
+    "close_price": 10.12,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "605186",
+    "name": "健麾信息",
+    "consecutive": 1,
+    "industry": "自动化设",
+    "close_price": 22.39,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "600601",
+    "name": "方正科技",
+    "consecutive": 1,
+    "industry": "元件",
+    "close_price": 13.33,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "600198",
+    "name": "大唐电信",
+    "consecutive": 1,
+    "industry": "通信设备",
+    "close_price": 9.72,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "603936",
+    "name": "博敏电子",
+    "consecutive": 1,
+    "industry": "元件",
+    "close_price": 20.22,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
+    "code": "603275",
+    "name": "众辰科技",
+    "consecutive": 1,
+    "industry": "自动化设",
+    "close_price": 53.32,
+    "entry_line": "运行中",
+    "date": "2026-05-12"
+  },
+  {
     "code": "600130",
     "name": "波导股份",
     "consecutive": 3,

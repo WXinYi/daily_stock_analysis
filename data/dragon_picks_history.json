@@ -2,6 +2,33 @@
   {
     "code": "601991",
     "name": "大唐发电",
+    "consecutive": 6,
+    "industry": "电力",
+    "close_price": 6.7,
+    "entry_line": "运行中",
+    "date": "2026-05-13"
+  },
+  {
+    "code": "600396",
+    "name": "华电辽能",
+    "consecutive": 3,
+    "industry": "电力",
+    "close_price": 15.05,
+    "entry_line": "运行中",
+    "date": "2026-05-13"
+  },
+  {
+    "code": "002498",
+    "name": "汉缆股份",
+    "consecutive": 2,
+    "industry": "电网设备",
+    "close_price": 10.01,
+    "entry_line": "运行中",
+    "date": "2026-05-13"
+  },
+  {
+    "code": "601991",
+    "name": "大唐发电",
     "consecutive": 4,
     "industry": "电力",
     "close_price": 6.09,

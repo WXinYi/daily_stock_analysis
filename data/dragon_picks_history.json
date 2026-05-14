@@ -4,6 +4,69 @@
     "name": "大唐发电",
     "consecutive": 6,
     "industry": "电力",
+    "close_price": 7.37,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "600396",
+    "name": "华电辽能",
+    "consecutive": 3,
+    "industry": "电力",
+    "close_price": 16.56,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "600172",
+    "name": "黄河旋风",
+    "consecutive": 3,
+    "industry": "通用设备",
+    "close_price": 11.84,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "002560",
+    "name": "通达股份",
+    "consecutive": 2,
+    "industry": "电网设备",
+    "close_price": 12.9,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "603023",
+    "name": "威帝股份",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 5.3,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "601138",
+    "name": "工业富联",
+    "consecutive": 1,
+    "industry": "消费电子",
+    "close_price": 70.84,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "002760",
+    "name": "凤形股份",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 25.36,
+    "entry_line": "运行中",
+    "date": "2026-05-14"
+  },
+  {
+    "code": "601991",
+    "name": "大唐发电",
+    "consecutive": 6,
+    "industry": "电力",
     "close_price": 6.7,
     "entry_line": "运行中",
     "date": "2026-05-13"

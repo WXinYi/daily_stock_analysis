@@ -1,5 +1,41 @@
 [
   {
+    "code": "600578",
+    "name": "京能电力",
+    "consecutive": 4,
+    "industry": "电力",
+    "close_price": 7.71,
+    "entry_line": "运行中",
+    "date": "2026-05-19"
+  },
+  {
+    "code": "603082",
+    "name": "北自科技",
+    "consecutive": 3,
+    "industry": "自动化设",
+    "close_price": 46.53,
+    "entry_line": "运行中",
+    "date": "2026-05-19"
+  },
+  {
+    "code": "603191",
+    "name": "望变电气",
+    "consecutive": 1,
+    "industry": "电网设备",
+    "close_price": 22.18,
+    "entry_line": "运行中",
+    "date": "2026-05-19"
+  },
+  {
+    "code": "002927",
+    "name": "泰永长征",
+    "consecutive": 1,
+    "industry": "电网设备",
+    "close_price": 21.56,
+    "entry_line": "运行中",
+    "date": "2026-05-19"
+  },
+  {
     "code": "300721",
     "name": "怡达股份",
     "consecutive": 1,

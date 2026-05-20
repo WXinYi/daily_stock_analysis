@@ -1,5 +1,59 @@
 [
   {
+    "code": "002272",
+    "name": "川润股份",
+    "consecutive": 2,
+    "industry": "通用设备",
+    "close_price": 22.67,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
+    "code": "300657",
+    "name": "弘信电子",
+    "consecutive": 2,
+    "industry": "元件",
+    "close_price": 52.08,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
+    "code": "603989",
+    "name": "艾华集团",
+    "consecutive": 2,
+    "industry": "元件",
+    "close_price": 24.2,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
+    "code": "002893",
+    "name": "京能热力",
+    "consecutive": 1,
+    "industry": "电力",
+    "close_price": 12.43,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
+    "code": "688610",
+    "name": "埃科光电",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 164.71,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
+    "code": "688360",
+    "name": "德马科技",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 24.18,
+    "entry_line": "运行中",
+    "date": "2026-05-20"
+  },
+  {
     "code": "600578",
     "name": "京能电力",
     "consecutive": 4,

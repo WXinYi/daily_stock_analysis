@@ -45,6 +45,7 @@ PRIOR_TREND_LOOKBACK = 20       # 前期趋势回看天数
 KLINE_FETCH_DAYS = 45           # K线拉取天数（覆盖MA21+盘整+前期趋势，MA60仅当数据够时计算）
 MIN_TURNOVER = 2.0              # 初筛最低换手率
 MAX_TURNOVER = 20.0             # 初筛最高换手率
+MIN_FLOAT_MV = 20.0             # 最小流通市值(亿)，排除小盘庄股
 A_GRADE_VOL_RATIO = 3.5         # A级量能倍数
 A_GRADE_BODY_RATIO = 0.85       # A级实体占比
 B_GRADE_VOL_RATIO = 2.5         # B级量能倍数
@@ -663,9 +664,11 @@ def screen_one_finger_stocks(
                         change_pct = (price - prev_close) / prev_close * 100
                         turn_over = float(parts[37]) if len(parts) > 37 and parts[37] else 0
                         industry = parts[56].strip() if len(parts) > 56 and parts[56] and parts[56].strip() not in ('GP-A', 'GP') else ''
+                        float_mv = float(parts[43]) if len(parts) > 43 and parts[43] else 0  # 流通市值(亿)
                         rows.append({
                             '代码': tc, '名称': parts[1], '涨跌幅': change_pct,
                             '量比': 1.0, '换手率': turn_over, '所属行业': industry,
+                            '流通市值': float_mv,
                         })
                 if i % (batch_size * 5) == 0:
                     logger.info(f"  腾讯行情: {i}/{len(all_codes)}")
@@ -698,6 +701,7 @@ def screen_one_finger_stocks(
         change_pct = float(row.get('涨跌幅', 0) or 0)
         volume_ratio = float(row.get('量比', 1.0) or 1.0)
         turn_over = float(row.get('换手率', 0) or 0)
+        float_mv = float(row.get('流通市值', 0) or 0)  # 亿
         industry = str(row.get('所属行业', '') or '')
 
         if turn_over > 0:
@@ -717,7 +721,7 @@ def screen_one_finger_stocks(
         candidates.append({
             'code': code, 'name': name, 'change_pct': change_pct,
             'volume_ratio': volume_ratio, 'turn_over': turn_over,
-            'industry': industry,
+            'float_mv': float_mv, 'industry': industry,
             'is_limit_up': code in limit_up_map,
             'consecutive_limit': limit_up_map.get(code, {}).get('consecutive', 0),
         })
@@ -728,6 +732,12 @@ def screen_one_finger_stocks(
         logger.info(f"STEP1 初筛(含换手率{MIN_TURNOVER}-{MAX_TURNOVER}%): {len(candidates)} 只")
     else:
         logger.info(f"STEP1 初筛(换手率数据不可用): {len(candidates)} 只")
+
+    # 流通市值过滤（仅当数据源提供流通市值时生效）
+    mv_available = any(c.get('float_mv', 0) > 0 for c in candidates)
+    if mv_available:
+        candidates = [c for c in candidates if c.get('float_mv', 0) >= MIN_FLOAT_MV]
+        logger.info(f"STEP1 初筛(流通市值≥{MIN_FLOAT_MV}亿): {len(candidates)} 只")
 
     if not candidates:
         logger.info("无候选股")
@@ -972,6 +982,196 @@ def screen_one_finger_stocks(
 
 
 # ═══════════════════════════════════════════════════════════════
+# Pullback Confirmation (回踩确认)
+# ═══════════════════════════════════════════════════════════════
+
+@dataclass
+class PullbackEntry:
+    """回踩确认候选"""
+    code: str
+    name: str
+    breakout_date: str              # 突破日期
+    consolidation_high: float       # 盘整突破位（理想入场）
+    consolidation_low: float        # 盘整低点（破位警戒线）
+    breakout_close: float           # 突破日收盘价
+    current_price: float            # 当前价格
+    current_change_pct: float       # 当前涨幅
+    distance_to_entry: float        # 距突破位%
+    vol_breakout: float             # 突破日成交量
+    vol_current: float              # 今日成交量
+    is_pullback: bool               # 是否确认回踩
+    status: str = ""                # "入场" | "等回踩" | "已远离"
+    status_emoji: str = ""          # 🟢🟡⚪
+
+
+PULLBACK_LOOKBACK_DAYS = 10        # 回看天数
+ENTRY_ZONE_PCT = 0.02              # 入场区范围：突破位 +2%
+WAIT_ZONE_PCT = 0.05               # 等待区范围：突破位 +2%~5%
+FAR_ZONE_PCT = 0.05                # 远离区：超过突破位 +5%
+
+
+def find_pullback_entries(
+    history_file: str = "data/one_finger_picks_history.json",
+    max_stocks: int = 8,
+) -> List[PullbackEntry]:
+    """在历史一阳指选股中寻找回踩到入场区的标的"""
+    if not os.path.exists(history_file):
+        logger.info("无历史选股数据，跳过回踩确认")
+        return []
+
+    with open(history_file, "r", encoding="utf-8") as f:
+        all_picks = json.load(f)
+
+    if not all_picks:
+        return []
+
+    # 取最近 N 个交易日的选股（去重按code）
+    today = datetime.now().date()
+    cutoff = today - timedelta(days=PULLBACK_LOOKBACK_DAYS)
+    recent_picks = {}
+    for p in all_picks:
+        pick_date = p.get("date", "")
+        code = p.get("code", "")
+        if not pick_date or not code:
+            continue
+        try:
+            pd_dt = datetime.strptime(pick_date, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if pd_dt >= cutoff and code not in recent_picks:
+            # 只保留最近的记录
+            cons_high = p.get("consolidation_high", 0)
+            cons_low = p.get("consolidation_low", 0)
+            if cons_high <= 0:
+                continue
+            recent_picks[code] = {
+                "name": p.get("name", ""),
+                "breakout_date": pick_date,
+                "consolidation_high": cons_high,
+                "consolidation_low": cons_low,
+                "breakout_close": p.get("close_price", 0),
+                "vol_breakout": p.get("vol_ratio_5d", 0),
+            }
+
+    if not recent_picks:
+        return []
+
+    # 拉取当前K线
+    codes = list(recent_picks.keys())[:max_stocks]
+    kline_map = _batch_fetch_klines(codes, max_workers=8, days=KLINE_FETCH_DAYS)
+    logger.info(f"回踩确认: 拉取 {len(kline_map)}/{len(codes)} 只K线")
+
+    results = []
+    for code, info in recent_picks.items():
+        df = kline_map.get(code)
+        if df is None or df.empty or len(df) < 3:
+            continue
+
+        latest = df.iloc[-1]
+        current_price = float(latest["close"])
+        current_vol = float(latest["volume"])
+        prev_close = float(df.iloc[-2]["close"]) if len(df) >= 2 else current_price
+
+        if current_price <= 0 or prev_close <= 0:
+            continue
+
+        cons_high = info["consolidation_high"]
+        cons_low = info["consolidation_low"]
+        current_change_pct = (current_price - prev_close) / prev_close * 100
+        distance = (current_price - cons_high) / cons_high
+
+        # 条件A: 未破位（当前价 > 盘整低点）
+        if current_price < cons_low:
+            continue
+
+        # 条件B: 未远离入场区（当前价 < 突破位 × 1.10）
+        if distance > 0.10:
+            continue
+
+        # 条件C: 近3天不是持续拉升（至少有一天收阴）
+        if len(df) >= 3:
+            last3 = df.iloc[-3:]
+            all_up = all(float(r["close"]) > float(r["open"]) for _, r in last3.iterrows())
+            if all_up:
+                continue  # 连续3阳线，不是回踩
+
+        # 条件D: 缩量（今日量 < 突破日量的0.7 或 < 5日均量）
+        vol_5d_avg = float(df["volume"].iloc[-6:-1].mean()) if len(df) >= 6 else current_vol
+        is_vol_shrinking = current_vol < vol_5d_avg * 0.9
+
+        # 状态判定
+        if distance <= ENTRY_ZONE_PCT:
+            status = "可入场"
+            emoji = "🟢"
+        elif distance <= WAIT_ZONE_PCT:
+            status = "等回踩"
+            emoji = "🟡"
+        else:
+            status = "已远离"
+            emoji = "⚪"
+
+        results.append(PullbackEntry(
+            code=code,
+            name=info["name"],
+            breakout_date=info["breakout_date"],
+            consolidation_high=cons_high,
+            consolidation_low=cons_low,
+            breakout_close=info["breakout_close"],
+            current_price=current_price,
+            current_change_pct=current_change_pct,
+            distance_to_entry=round(distance * 100, 1),
+            vol_breakout=info.get("vol_breakout", 0),
+            vol_current=current_vol,
+            is_pullback=is_vol_shrinking and distance <= WAIT_ZONE_PCT,
+            status=status,
+            status_emoji=emoji,
+        ))
+
+    # 排序：可入场 > 等回踩 > 已远离
+    status_order = {"可入场": 0, "等回踩": 1, "已远离": 2}
+    results.sort(key=lambda r: (status_order.get(r.status, 9), abs(r.distance_to_entry)))
+
+    logger.info(f"回踩确认: {len(results)} 只 (可入场{sum(1 for r in results if r.status=='可入场')}只)")
+    return results
+
+
+def _build_pullback_section(entries: List[PullbackEntry]) -> str:
+    """生成回踩确认报告段落"""
+    if not entries:
+        return ""
+
+    today_str = datetime.now().strftime("%m-%d")
+    buf = [f"\n---\n## 🔄 一阳指回踩确认 · {today_str}"]
+    buf.append(f"监控过去 {PULLBACK_LOOKBACK_DAYS} 天选股，以下标的已回踩至入场区附近：\n")
+
+    for i, e in enumerate(entries[:6]):
+        label = ["①", "②", "③", "④", "⑤", "⑥"][i]
+        buf.append(
+            f"{label} **{e.name}**({e.code}) {e.status_emoji} 距买点 +{e.distance_to_entry}%"
+        )
+        buf.append(
+            f"   突破日 {e.breakout_date} | 盘整高 {e.consolidation_high:.2f} | "
+            f"现价 {e.current_price:.2f} ({e.current_change_pct:+.1f}%)"
+        )
+        vol_note = "缩量回踩" if e.is_pullback else ""
+        if vol_note:
+            buf.append(f"   {vol_note} | 入场 {e.consolidation_high:.2f} | 止损 {e.consolidation_low*0.97:.2f}")
+        buf.append("")
+
+    entry_count = sum(1 for e in entries if e.status == "可入场")
+    wait_count = sum(1 for e in entries if e.status == "等回踩")
+    if entry_count > 0 or wait_count > 0:
+        tips = []
+        if entry_count > 0:
+            tips.append(f"🟢 {entry_count}只在入场区，可重点关注")
+        if wait_count > 0:
+            tips.append(f"🟡 {wait_count}只靠近买点，等回落到入场区")
+        buf.append("> " + " | ".join(tips))
+
+    return "\n".join(buf)
+
+
+# ═══════════════════════════════════════════════════════════════
 # Report Generation
 # ═══════════════════════════════════════════════════════════════
 
@@ -1046,6 +1246,12 @@ def build_one_finger_report(
             buf.append("")
         buf.append("")
 
+    # ── 回踩确认段 ──
+    pullback_entries = find_pullback_entries()
+    pb_section = _build_pullback_section(pullback_entries)
+    if pb_section:
+        buf.append(pb_section)
+
     # 战法纪律
     buf.append("---")
     buf.append(
@@ -1114,6 +1320,8 @@ def save_one_finger_picks(stocks: List[OneFingerStock], filepath: str = "data/on
             'body_ratio': s.body_ratio,
             'vol_ratio_5d': s.vol_ratio_5d,
             'prior_trend': s.prior_trend,
+            'consolidation_high': s.consolidation_high,
+            'consolidation_low': s.consolidation_low,
             'consolidation_range': s.consolidation_range,
             'vol_contracting': s.vol_contracting,
             'ma_penetrations': s.ma_penetrations,

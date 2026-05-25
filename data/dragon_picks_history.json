@@ -1,5 +1,32 @@
 [
   {
+    "code": "300069",
+    "name": "金利华电",
+    "consecutive": 3,
+    "industry": "电网设备",
+    "close_price": 52.87,
+    "entry_line": "运行中",
+    "date": "2026-05-25"
+  },
+  {
+    "code": "301628",
+    "name": "强达电路",
+    "consecutive": 1,
+    "industry": "元件",
+    "close_price": 135.18,
+    "entry_line": "运行中",
+    "date": "2026-05-25"
+  },
+  {
+    "code": "300174",
+    "name": "元力股份",
+    "consecutive": 1,
+    "industry": "化学制品",
+    "close_price": 22.92,
+    "entry_line": "运行中",
+    "date": "2026-05-25"
+  },
+  {
     "code": "002272",
     "name": "川润股份",
     "consecutive": 2,

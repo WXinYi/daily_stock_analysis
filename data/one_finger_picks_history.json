@@ -1,5 +1,58 @@
 [
   {
+    "code": "600995",
+    "name": "南网储能",
+    "quality": "B",
+    "score_reasons": [
+      "放量充分",
+      "影线健康",
+      "盘整缩量蓄力",
+      "一阳穿3线",
+      "均线粘合",
+      "前日收窄"
+    ],
+    "close_price": 15.40999984741211,
+    "change_pct": 7.762,
+    "body_ratio": 0.7394372109172942,
+    "vol_ratio_5d": 3.324468628635766,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 15.006048749628832,
+    "consolidation_low": 13.716699143843734,
+    "consolidation_range": 0.09399853363145157,
+    "vol_contracting": true,
+    "ma_penetrations": 3,
+    "prev_day_pinching": true,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-05-29"
+  },
+  {
+    "code": "002146",
+    "name": "荣盛发展",
+    "quality": "C",
+    "score_reasons": [
+      "实体饱满",
+      "上影偏长",
+      "一阳穿3线"
+    ],
+    "close_price": 1.3200000524520874,
+    "change_pct": 5.6,
+    "body_ratio": 0.9090910076109703,
+    "vol_ratio_5d": 2.1102774843722005,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 1.309999942779541,
+    "consolidation_low": 1.2000000476837158,
+    "consolidation_range": 0.09166657560401854,
+    "vol_contracting": false,
+    "ma_penetrations": 3,
+    "prev_day_pinching": false,
+    "ma_sticky": false,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-05-29"
+  },
+  {
     "code": "002973",
     "name": "侨银股份",
     "quality": "A",

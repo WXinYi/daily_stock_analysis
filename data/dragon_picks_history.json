@@ -1,5 +1,50 @@
 [
   {
+    "code": "000509",
+    "name": "华塑控股",
+    "consecutive": 4,
+    "industry": "光学光电",
+    "close_price": 5.73,
+    "entry_line": "运行中",
+    "date": "2026-05-29"
+  },
+  {
+    "code": "600162",
+    "name": "香江控股",
+    "consecutive": 4,
+    "industry": "房地产开",
+    "close_price": 2.54,
+    "entry_line": "运行中",
+    "date": "2026-05-29"
+  },
+  {
+    "code": "002579",
+    "name": "中京电子",
+    "consecutive": 3,
+    "industry": "元件",
+    "close_price": 18.19,
+    "entry_line": "运行中",
+    "date": "2026-05-29"
+  },
+  {
+    "code": "000600",
+    "name": "建投能源",
+    "consecutive": 1,
+    "industry": "电力",
+    "close_price": 12.1,
+    "entry_line": "运行中",
+    "date": "2026-05-29"
+  },
+  {
+    "code": "600237",
+    "name": "铜峰电子",
+    "consecutive": 1,
+    "industry": "元件",
+    "close_price": 10.92,
+    "entry_line": "运行中",
+    "date": "2026-05-29"
+  },
+  {
     "code": "300069",
     "name": "金利华电",
     "consecutive": 3,

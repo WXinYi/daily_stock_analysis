@@ -1,5 +1,68 @@
 [
   {
+    "code": "000539",
+    "name": "粤电力Ａ",
+    "consecutive": 4,
+    "industry": "电力",
+    "close_price": 9.77,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "603011",
+    "name": "合锻智能",
+    "consecutive": 4,
+    "industry": "专用设备",
+    "close_price": 27.41,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "002608",
+    "name": "江苏国信",
+    "consecutive": 2,
+    "industry": "电力",
+    "close_price": 10.12,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "600011",
+    "name": "华能国际",
+    "consecutive": 2,
+    "industry": "电力",
+    "close_price": 9.76,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "301329",
+    "name": "信音电子",
+    "consecutive": 1,
+    "industry": "消费电子",
+    "close_price": 31.38,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "600121",
+    "name": "郑州煤电",
+    "consecutive": 1,
+    "industry": "煤炭开采",
+    "close_price": 4.7,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
+    "code": "601918",
+    "name": "新集能源",
+    "consecutive": 1,
+    "industry": "煤炭开采",
+    "close_price": 11.28,
+    "entry_line": "运行中",
+    "date": "2026-06-02"
+  },
+  {
     "code": "000509",
     "name": "华塑控股",
     "consecutive": 4,

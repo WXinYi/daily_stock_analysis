@@ -1,5 +1,14 @@
 [
   {
+    "code": "688056",
+    "name": "莱伯泰科",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 48.16,
+    "entry_line": "运行中",
+    "date": "2026-06-08"
+  },
+  {
     "code": "000539",
     "name": "粤电力Ａ",
     "consecutive": 4,

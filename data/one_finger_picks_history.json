@@ -1,5 +1,32 @@
 [
   {
+    "code": "603669",
+    "name": "灵康药业",
+    "quality": "B",
+    "score_reasons": [
+      "放量充分",
+      "实体饱满",
+      "影线健康",
+      "一阳穿3线",
+      "均线粘合"
+    ],
+    "close_price": 4.480000019073486,
+    "change_pct": 10.074,
+    "body_ratio": 0.9574468300967574,
+    "vol_ratio_5d": 2.6259417363738082,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 4.400000095367432,
+    "consolidation_low": 4.010000228881836,
+    "consolidation_range": 0.09725681900879711,
+    "vol_contracting": false,
+    "ma_penetrations": 3,
+    "prev_day_pinching": false,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-06-08"
+  },
+  {
     "code": "600995",
     "name": "南网储能",
     "quality": "B",

@@ -1,5 +1,23 @@
 [
   {
+    "code": "603065",
+    "name": "宿迁联盛",
+    "consecutive": 4,
+    "industry": "化学制品",
+    "close_price": 13.6,
+    "entry_line": "运行中",
+    "date": "2026-06-15"
+  },
+  {
+    "code": "002971",
+    "name": "和远气体",
+    "consecutive": 4,
+    "industry": "化学制品",
+    "close_price": 58.03,
+    "entry_line": "运行中",
+    "date": "2026-06-15"
+  },
+  {
     "code": "688056",
     "name": "莱伯泰科",
     "consecutive": 1,

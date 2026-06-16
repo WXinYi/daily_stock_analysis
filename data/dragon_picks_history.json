@@ -1,5 +1,14 @@
 [
   {
+    "code": "601958",
+    "name": "金钼股份",
+    "consecutive": 3,
+    "industry": "小金属",
+    "close_price": 28.07,
+    "entry_line": "运行中",
+    "date": "2026-06-16"
+  },
+  {
     "code": "603065",
     "name": "宿迁联盛",
     "consecutive": 4,

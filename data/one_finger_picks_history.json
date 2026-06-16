@@ -1,5 +1,36 @@
 [
   {
+    "code": "000541",
+    "name": "佛山照明",
+    "quality": "A",
+    "score_reasons": [
+      "超强放量",
+      "实体饱满",
+      "影线健康",
+      "下跌转折",
+      "盘整缩量蓄力",
+      "一阳穿3线",
+      "均线粘合",
+      "前日收窄",
+      "大盘偏暖"
+    ],
+    "close_price": 5.309999942779541,
+    "change_pct": 9.938,
+    "body_ratio": 1.2553200339670536,
+    "vol_ratio_5d": 4.86693485455487,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 5.070000171661377,
+    "consolidation_low": 4.670000076293945,
+    "consolidation_range": 0.08565312394702718,
+    "vol_contracting": true,
+    "ma_penetrations": 3,
+    "prev_day_pinching": true,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-06-16"
+  },
+  {
     "code": "002215",
     "name": "诺 普 信",
     "quality": "A",

@@ -1,5 +1,14 @@
 [
   {
+    "code": "301176",
+    "name": "逸豪新材",
+    "consecutive": 3,
+    "industry": "元件",
+    "close_price": 81.5,
+    "entry_line": "运行中",
+    "date": "2026-06-17"
+  },
+  {
     "code": "601958",
     "name": "金钼股份",
     "consecutive": 3,

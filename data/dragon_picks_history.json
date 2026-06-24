@@ -1,5 +1,41 @@
 [
   {
+    "code": "600397",
+    "name": "江钨装备",
+    "consecutive": 5,
+    "industry": "专用设备",
+    "close_price": 24.44,
+    "entry_line": "运行中",
+    "date": "2026-06-24"
+  },
+  {
+    "code": "603407",
+    "name": "长裕集团",
+    "consecutive": 3,
+    "industry": "化学原料",
+    "close_price": 82.32,
+    "entry_line": "运行中",
+    "date": "2026-06-24"
+  },
+  {
+    "code": "600851",
+    "name": "海欣股份",
+    "consecutive": 3,
+    "industry": "化学制药",
+    "close_price": 9.72,
+    "entry_line": "运行中",
+    "date": "2026-06-24"
+  },
+  {
+    "code": "603669",
+    "name": "灵康药业",
+    "consecutive": 1,
+    "industry": "化学制药",
+    "close_price": 5.56,
+    "entry_line": "运行中",
+    "date": "2026-06-24"
+  },
+  {
     "code": "301176",
     "name": "逸豪新材",
     "consecutive": 3,

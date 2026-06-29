@@ -1,5 +1,31 @@
 [
   {
+    "code": "000017",
+    "name": "深中华A",
+    "quality": "C",
+    "score_reasons": [
+      "下影偏长",
+      "下跌转折",
+      "一阳穿3线",
+      "均线粘合"
+    ],
+    "close_price": 5.559999942779541,
+    "change_pct": 10.099,
+    "body_ratio": 0.710144536932417,
+    "vol_ratio_5d": 2.279120716746423,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 5.420000076293945,
+    "consolidation_low": 4.929999828338623,
+    "consolidation_range": 0.09939153448620891,
+    "vol_contracting": false,
+    "ma_penetrations": 3,
+    "prev_day_pinching": false,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-06-29"
+  },
+  {
     "code": "002550",
     "name": "千红制药",
     "quality": "A",

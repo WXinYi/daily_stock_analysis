@@ -1,5 +1,41 @@
 [
   {
+    "code": "688432",
+    "name": "有研硅",
+    "consecutive": 2,
+    "industry": "半导体",
+    "close_price": 37.08,
+    "entry_line": "运行中",
+    "date": "2026-06-30"
+  },
+  {
+    "code": "603155",
+    "name": "新亚强",
+    "consecutive": 2,
+    "industry": "化学制品",
+    "close_price": 27.87,
+    "entry_line": "运行中",
+    "date": "2026-06-30"
+  },
+  {
+    "code": "688233",
+    "name": "神工股份",
+    "consecutive": 1,
+    "industry": "半导体",
+    "close_price": 194.33,
+    "entry_line": "运行中",
+    "date": "2026-06-30"
+  },
+  {
+    "code": "301528",
+    "name": "多浦乐",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 74.4,
+    "entry_line": "运行中",
+    "date": "2026-06-30"
+  },
+  {
     "code": "600397",
     "name": "江钨装备",
     "consecutive": 5,

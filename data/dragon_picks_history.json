@@ -1,5 +1,32 @@
 [
   {
+    "code": "002407",
+    "name": "多氟多",
+    "consecutive": 3,
+    "industry": "化学制品",
+    "close_price": 55.25,
+    "entry_line": "运行中",
+    "date": "2026-07-02"
+  },
+  {
+    "code": "000566",
+    "name": "海南海药",
+    "consecutive": 3,
+    "industry": "化学制药",
+    "close_price": 5.49,
+    "entry_line": "运行中",
+    "date": "2026-07-02"
+  },
+  {
+    "code": "603379",
+    "name": "三美股份",
+    "consecutive": 2,
+    "industry": "化学制品",
+    "close_price": 83.48,
+    "entry_line": "运行中",
+    "date": "2026-07-02"
+  },
+  {
     "code": "688432",
     "name": "有研硅",
     "consecutive": 2,

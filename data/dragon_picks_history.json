@@ -1,5 +1,32 @@
 [
   {
+    "code": "000566",
+    "name": "海南海药",
+    "consecutive": 4,
+    "industry": "化学制药",
+    "close_price": 6.04,
+    "entry_line": "运行中",
+    "date": "2026-07-03"
+  },
+  {
+    "code": "603505",
+    "name": "金石资源",
+    "consecutive": 2,
+    "industry": "化学制品",
+    "close_price": 24.39,
+    "entry_line": "运行中",
+    "date": "2026-07-03"
+  },
+  {
+    "code": "603928",
+    "name": "兴业股份",
+    "consecutive": 1,
+    "industry": "塑料",
+    "close_price": 15.84,
+    "entry_line": "运行中",
+    "date": "2026-07-03"
+  },
+  {
     "code": "002407",
     "name": "多氟多",
     "consecutive": 3,

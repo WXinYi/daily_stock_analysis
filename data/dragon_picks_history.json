@@ -1,5 +1,14 @@
 [
   {
+    "code": "003020",
+    "name": "立方制药",
+    "consecutive": 2,
+    "industry": "化学制药",
+    "close_price": 18.74,
+    "entry_line": "运行中",
+    "date": "2026-07-13"
+  },
+  {
     "code": "000566",
     "name": "海南海药",
     "consecutive": 4,

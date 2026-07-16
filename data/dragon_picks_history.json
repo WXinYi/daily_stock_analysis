@@ -1,5 +1,59 @@
 [
   {
+    "code": "600664",
+    "name": "哈药股份",
+    "consecutive": 4,
+    "industry": "化学制药",
+    "close_price": 4.49,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
+    "code": "688192",
+    "name": "迪哲医药-U",
+    "consecutive": 2,
+    "industry": "化学制药",
+    "close_price": 67.6,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
+    "code": "000504",
+    "name": "南华生物",
+    "consecutive": 1,
+    "industry": "医疗服务",
+    "close_price": 8.51,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
+    "code": "600721",
+    "name": "百花医药",
+    "consecutive": 1,
+    "industry": "医疗服务",
+    "close_price": 7.57,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
+    "code": "002365",
+    "name": "永安药业",
+    "consecutive": 1,
+    "industry": "化学制药",
+    "close_price": 11.98,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
+    "code": "002900",
+    "name": "哈三联",
+    "consecutive": 1,
+    "industry": "化学制药",
+    "close_price": 11.19,
+    "entry_line": "运行中",
+    "date": "2026-07-16"
+  },
+  {
     "code": "003020",
     "name": "立方制药",
     "consecutive": 2,

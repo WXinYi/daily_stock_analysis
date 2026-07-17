@@ -1,5 +1,34 @@
 [
   {
+    "code": "600101",
+    "name": "明星电力",
+    "quality": "B",
+    "score_reasons": [
+      "放量充分",
+      "实体饱满",
+      "影线健康",
+      "下跌转折",
+      "穿透2线",
+      "均线粘合",
+      "前日收窄"
+    ],
+    "close_price": 8.59000015258789,
+    "change_pct": 6.18,
+    "body_ratio": 0.8852463373413734,
+    "vol_ratio_5d": 2.530284423046007,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 8.270000457763672,
+    "consolidation_low": 7.599999904632568,
+    "consolidation_range": 0.08815796862348718,
+    "vol_contracting": false,
+    "ma_penetrations": 2,
+    "prev_day_pinching": true,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-07-17"
+  },
+  {
     "code": "000507",
     "name": "珠海港",
     "quality": "A",

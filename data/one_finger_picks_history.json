@@ -1,5 +1,33 @@
 [
   {
+    "code": "002953",
+    "name": "日丰股份",
+    "quality": "B",
+    "score_reasons": [
+      "放量充分",
+      "实体饱满",
+      "影线健康",
+      "下跌转折",
+      "一阳穿3线",
+      "均线粘合"
+    ],
+    "close_price": 9.859999656677246,
+    "change_pct": 10.045,
+    "body_ratio": 1.0299997329711914,
+    "vol_ratio_5d": 3.0139914463528052,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 9.0600004196167,
+    "consolidation_low": 8.369999885559082,
+    "consolidation_range": 0.08243734091897517,
+    "vol_contracting": false,
+    "ma_penetrations": 3,
+    "prev_day_pinching": false,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-07-22"
+  },
+  {
     "code": "600101",
     "name": "明星电力",
     "quality": "B",

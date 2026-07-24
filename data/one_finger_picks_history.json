@@ -1,5 +1,58 @@
 [
   {
+    "code": "688237",
+    "name": "超卓航科",
+    "quality": "B",
+    "score_reasons": [
+      "超强放量",
+      "实体扎实",
+      "影线健康",
+      "盘整缩量蓄力",
+      "穿透2线"
+    ],
+    "close_price": 64.0199966430664,
+    "change_pct": 17.382,
+    "body_ratio": 0.8075989269505456,
+    "vol_ratio_5d": 5.427177812169193,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 55.79999923706055,
+    "consolidation_low": 50.880001068115234,
+    "consolidation_range": 0.09669807518987078,
+    "vol_contracting": true,
+    "ma_penetrations": 2,
+    "prev_day_pinching": false,
+    "ma_sticky": false,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-07-24"
+  },
+  {
+    "code": "300847",
+    "name": "中船汉光",
+    "quality": "C",
+    "score_reasons": [
+      "放量充分",
+      "上影偏长",
+      "穿透2线",
+      "均线粘合"
+    ],
+    "close_price": 14.380000114440918,
+    "change_pct": 6.047,
+    "body_ratio": 0.7350994632263639,
+    "vol_ratio_5d": 3.2928582548733143,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 13.640000343322754,
+    "consolidation_low": 12.699999809265137,
+    "consolidation_range": 0.0740157911948826,
+    "vol_contracting": false,
+    "ma_penetrations": 2,
+    "prev_day_pinching": false,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-07-24"
+  },
+  {
     "code": "002953",
     "name": "日丰股份",
     "quality": "B",

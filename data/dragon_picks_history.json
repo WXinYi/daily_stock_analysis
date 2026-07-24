@@ -1,5 +1,23 @@
 [
   {
+    "code": "001258",
+    "name": "立新能源",
+    "consecutive": 6,
+    "industry": "电力",
+    "close_price": 12.11,
+    "entry_line": "运行中",
+    "date": "2026-07-24"
+  },
+  {
+    "code": "002879",
+    "name": "长缆科技",
+    "consecutive": 3,
+    "industry": "电网设备",
+    "close_price": 16.41,
+    "entry_line": "运行中",
+    "date": "2026-07-24"
+  },
+  {
     "code": "600664",
     "name": "哈药股份",
     "consecutive": 4,

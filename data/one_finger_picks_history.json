@@ -1,5 +1,30 @@
 [
   {
+    "code": "300678",
+    "name": "中科信息",
+    "quality": "C",
+    "score_reasons": [
+      "实体饱满",
+      "影线健康",
+      "均线粘合"
+    ],
+    "close_price": 24.059999465942383,
+    "change_pct": 8.574,
+    "body_ratio": 0.8728816093505394,
+    "vol_ratio_5d": 2.177947349643608,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 22.3799991607666,
+    "consolidation_low": 20.719999313354492,
+    "consolidation_range": 0.080115825406529,
+    "vol_contracting": false,
+    "ma_penetrations": 1,
+    "prev_day_pinching": false,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-07-28"
+  },
+  {
     "code": "688237",
     "name": "超卓航科",
     "quality": "B",

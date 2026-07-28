@@ -1,5 +1,23 @@
 [
   {
+    "code": "603221",
+    "name": "爱丽家居",
+    "consecutive": 5,
+    "industry": "家居用品",
+    "close_price": 15.4,
+    "entry_line": "运行中",
+    "date": "2026-07-28"
+  },
+  {
+    "code": "002879",
+    "name": "长缆科技",
+    "consecutive": 5,
+    "industry": "电网设备",
+    "close_price": 19.86,
+    "entry_line": "运行中",
+    "date": "2026-07-28"
+  },
+  {
     "code": "001258",
     "name": "立新能源",
     "consecutive": 6,

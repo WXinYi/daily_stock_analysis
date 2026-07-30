@@ -2,6 +2,69 @@
   {
     "code": "603221",
     "name": "爱丽家居",
+    "consecutive": 7,
+    "industry": "家居用品",
+    "close_price": 18.63,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "003032",
+    "name": "传智教育",
+    "consecutive": 3,
+    "industry": "教育",
+    "close_price": 7.28,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "300997",
+    "name": "欢乐家",
+    "consecutive": 1,
+    "industry": "饮料乳品",
+    "close_price": 18.0,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "300359",
+    "name": "全通教育",
+    "consecutive": 1,
+    "industry": "教育",
+    "close_price": 4.43,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "605337",
+    "name": "李子园",
+    "consecutive": 1,
+    "industry": "饮料乳品",
+    "close_price": 9.75,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "600419",
+    "name": "天润乳业",
+    "consecutive": 1,
+    "industry": "饮料乳品",
+    "close_price": 8.83,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "600429",
+    "name": "三元股份",
+    "consecutive": 1,
+    "industry": "饮料乳品",
+    "close_price": 4.69,
+    "entry_line": "运行中",
+    "date": "2026-07-30"
+  },
+  {
+    "code": "603221",
+    "name": "爱丽家居",
     "consecutive": 5,
     "industry": "家居用品",
     "close_price": 15.4,

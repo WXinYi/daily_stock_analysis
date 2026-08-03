@@ -1,5 +1,23 @@
 [
   {
+    "code": "300996",
+    "name": "普联软件",
+    "consecutive": 2,
+    "industry": "软件开发",
+    "close_price": 18.62,
+    "entry_line": "运行中",
+    "date": "2026-08-03"
+  },
+  {
+    "code": "603337",
+    "name": "杰克科技",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 43.11,
+    "entry_line": "运行中",
+    "date": "2026-08-03"
+  },
+  {
     "code": "603221",
     "name": "爱丽家居",
     "consecutive": 7,

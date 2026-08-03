@@ -1,5 +1,33 @@
 [
   {
+    "code": "601611",
+    "name": "中国核建",
+    "quality": "B",
+    "score_reasons": [
+      "实体饱满",
+      "影线健康",
+      "下跌转折",
+      "盘整缩量蓄力",
+      "前日收窄",
+      "大盘偏暖"
+    ],
+    "close_price": 11.609999656677246,
+    "change_pct": 10.047,
+    "body_ratio": 0.9861121045228047,
+    "vol_ratio_5d": 2.3767802422618884,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 10.65999984741211,
+    "consolidation_low": 9.729999542236328,
+    "consolidation_range": 0.09558071417565878,
+    "vol_contracting": true,
+    "ma_penetrations": 0,
+    "prev_day_pinching": true,
+    "ma_sticky": false,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-08-03"
+  },
+  {
     "code": "603352",
     "name": "至信股份",
     "quality": "A",

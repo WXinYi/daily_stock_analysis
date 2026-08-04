@@ -1,5 +1,41 @@
 [
   {
+    "code": "002827",
+    "name": "高争民爆",
+    "consecutive": 4,
+    "industry": "化学制品",
+    "close_price": 38.06,
+    "entry_line": "运行中",
+    "date": "2026-08-04"
+  },
+  {
+    "code": "002131",
+    "name": "利欧股份",
+    "consecutive": 2,
+    "industry": "通用设备",
+    "close_price": 5.13,
+    "entry_line": "运行中",
+    "date": "2026-08-04"
+  },
+  {
+    "code": "301082",
+    "name": "久盛电气",
+    "consecutive": 1,
+    "industry": "电网设备",
+    "close_price": 10.62,
+    "entry_line": "运行中",
+    "date": "2026-08-04"
+  },
+  {
+    "code": "600192",
+    "name": "长城电工",
+    "consecutive": 1,
+    "industry": "电网设备",
+    "close_price": 7.22,
+    "entry_line": "运行中",
+    "date": "2026-08-04"
+  },
+  {
     "code": "300996",
     "name": "普联软件",
     "consecutive": 2,

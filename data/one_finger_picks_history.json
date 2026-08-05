@@ -1,5 +1,34 @@
 [
   {
+    "code": "301026",
+    "name": "浩通科技",
+    "quality": "A",
+    "score_reasons": [
+      "超强放量",
+      "实体饱满",
+      "影线健康",
+      "下跌转折",
+      "盘整缩量蓄力",
+      "前日收窄",
+      "大盘偏暖"
+    ],
+    "close_price": 21.489999771118164,
+    "change_pct": 19.99,
+    "body_ratio": 1.284697970268434,
+    "vol_ratio_5d": 5.78361699055629,
+    "prior_trend": "DOWNTREND",
+    "consolidation_high": 18.100000381469727,
+    "consolidation_low": 16.56999969482422,
+    "consolidation_range": 0.09233558930742869,
+    "vol_contracting": true,
+    "ma_penetrations": 1,
+    "prev_day_pinching": true,
+    "ma_sticky": false,
+    "sector_in_top": false,
+    "turn_over": 16.02,
+    "date": "2026-08-05"
+  },
+  {
     "code": "601611",
     "name": "中国核建",
     "quality": "B",

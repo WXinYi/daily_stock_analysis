@@ -1,5 +1,32 @@
 [
   {
+    "code": "300615",
+    "name": "欣天科技",
+    "consecutive": 3,
+    "industry": "通信设备",
+    "close_price": 15.02,
+    "entry_line": "运行中",
+    "date": "2026-08-06"
+  },
+  {
+    "code": "600130",
+    "name": "波导股份",
+    "consecutive": 1,
+    "industry": "消费电子",
+    "close_price": 4.32,
+    "entry_line": "运行中",
+    "date": "2026-08-06"
+  },
+  {
+    "code": "301026",
+    "name": "浩通科技",
+    "consecutive": 1,
+    "industry": "小金属",
+    "close_price": 21.49,
+    "entry_line": "运行中",
+    "date": "2026-08-06"
+  },
+  {
     "code": "002827",
     "name": "高争民爆",
     "consecutive": 4,

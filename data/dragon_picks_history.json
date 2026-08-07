@@ -2,6 +2,78 @@
   {
     "code": "300615",
     "name": "欣天科技",
+    "consecutive": 4,
+    "industry": "通信设备",
+    "close_price": 18.02,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "600262",
+    "name": "北方股份",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 15.63,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "002194",
+    "name": "武汉凡谷",
+    "consecutive": 1,
+    "industry": "通信设备",
+    "close_price": 10.09,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "300711",
+    "name": "广哈通信",
+    "consecutive": 1,
+    "industry": "通信设备",
+    "close_price": 19.03,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "603421",
+    "name": "鼎信通讯",
+    "consecutive": 1,
+    "industry": "通信设备",
+    "close_price": 6.41,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "601666",
+    "name": "平煤股份",
+    "consecutive": 1,
+    "industry": "煤炭开采",
+    "close_price": 8.92,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "600985",
+    "name": "淮北矿业",
+    "consecutive": 1,
+    "industry": "煤炭开采",
+    "close_price": 16.5,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "600758",
+    "name": "辽宁能源",
+    "consecutive": 1,
+    "industry": "煤炭开采",
+    "close_price": 3.67,
+    "entry_line": "运行中",
+    "date": "2026-08-07"
+  },
+  {
+    "code": "300615",
+    "name": "欣天科技",
     "consecutive": 3,
     "industry": "通信设备",
     "close_price": 15.02,

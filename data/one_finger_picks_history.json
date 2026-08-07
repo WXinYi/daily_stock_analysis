@@ -1,5 +1,34 @@
 [
   {
+    "code": "002589",
+    "name": "瑞康医药",
+    "quality": "B",
+    "score_reasons": [
+      "超强放量",
+      "实体扎实",
+      "影线健康",
+      "盘整缩量蓄力",
+      "均线粘合",
+      "前日收窄",
+      "大盘偏暖"
+    ],
+    "close_price": 3.0399999618530273,
+    "change_pct": 10.145,
+    "body_ratio": 0.8064517617598063,
+    "vol_ratio_5d": 6.584870487310311,
+    "prior_trend": "CONSOLIDATION",
+    "consolidation_high": 2.8299999237060547,
+    "consolidation_low": 2.5899999141693115,
+    "consolidation_range": 0.09266409941705275,
+    "vol_contracting": true,
+    "ma_penetrations": 1,
+    "prev_day_pinching": true,
+    "ma_sticky": true,
+    "sector_in_top": false,
+    "turn_over": 0.0,
+    "date": "2026-08-07"
+  },
+  {
     "code": "301026",
     "name": "浩通科技",
     "quality": "A",

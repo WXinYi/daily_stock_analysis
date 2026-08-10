@@ -1,5 +1,32 @@
 [
   {
+    "code": "600721",
+    "name": "百花医药",
+    "consecutive": 4,
+    "industry": "医疗服务",
+    "close_price": 10.54,
+    "entry_line": "运行中",
+    "date": "2026-08-10"
+  },
+  {
+    "code": "002194",
+    "name": "武汉凡谷",
+    "consecutive": 2,
+    "industry": "通信设备",
+    "close_price": 11.1,
+    "entry_line": "运行中",
+    "date": "2026-08-10"
+  },
+  {
+    "code": "002037",
+    "name": "保利联合",
+    "consecutive": 1,
+    "industry": "化学制品",
+    "close_price": 7.69,
+    "entry_line": "运行中",
+    "date": "2026-08-10"
+  },
+  {
     "code": "300615",
     "name": "欣天科技",
     "consecutive": 4,

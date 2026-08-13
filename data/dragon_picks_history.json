@@ -1,5 +1,158 @@
 [
   {
+    "code": "603758",
+    "name": "秦安股份",
+    "consecutive": 4,
+    "industry": "汽车零部",
+    "close_price": 13.95,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "605286",
+    "name": "同力天启",
+    "consecutive": 3,
+    "industry": "专用设备",
+    "close_price": 30.99,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002248",
+    "name": "华东数控",
+    "consecutive": 3,
+    "industry": "通用设备",
+    "close_price": 12.17,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002031",
+    "name": "巨轮智能",
+    "consecutive": 2,
+    "industry": "专用设备",
+    "close_price": 6.42,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "603897",
+    "name": "长城科技",
+    "consecutive": 2,
+    "industry": "电网设备",
+    "close_price": 32.05,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "000887",
+    "name": "中鼎股份",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 21.54,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "600604",
+    "name": "市北高新",
+    "consecutive": 1,
+    "industry": "房地产开",
+    "close_price": 5.01,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002520",
+    "name": "日发精机",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 6.59,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "603076",
+    "name": "乐惠国际",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 23.06,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002146",
+    "name": "荣盛发展",
+    "consecutive": 1,
+    "industry": "房地产开",
+    "close_price": 1.27,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "001260",
+    "name": "坤泰股份",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 19.12,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002870",
+    "name": "香山股份",
+    "consecutive": 1,
+    "industry": "汽车零部",
+    "close_price": 47.49,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "603289",
+    "name": "泰瑞机器",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 9.34,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "920856",
+    "name": "浩淼科技",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 14.93,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "002164",
+    "name": "宁波东力",
+    "consecutive": 1,
+    "industry": "通用设备",
+    "close_price": 13.09,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "600266",
+    "name": "城建发展",
+    "consecutive": 1,
+    "industry": "房地产开",
+    "close_price": 4.6,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
+    "code": "603095",
+    "name": "越剑智能",
+    "consecutive": 1,
+    "industry": "专用设备",
+    "close_price": 14.45,
+    "entry_line": "运行中",
+    "date": "2026-08-13"
+  },
+  {
     "code": "600721",
     "name": "百花医药",
     "consecutive": 5,

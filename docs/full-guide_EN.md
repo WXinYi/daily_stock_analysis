@@ -301,7 +301,7 @@ Default schedule: Every weekday at **18:00 (Beijing Time)** automatic execution.
 > - TickFlow behavior is capability-based rather than just key-based: limited plans can still enhance main CN indices, while plans with `CN_Equity_A` universe query support also enhance market breadth.
 > - The official quickstart documents `quotes.get(universes=["CN_Equity_A"])`, but online smoke tests confirmed two additional real-world constraints: universe access depends on plan permissions, and `quotes.get(symbols=[...])` has a per-request symbol limit.
 > - TickFlow currently returns `change_pct` / `amplitude` as ratio values; this integration normalizes them to the project's percent convention so they match AkShare / Tushare / efinance semantics.
-> - CN market review reports now use a post-market workstation layout with fixed market light, market temperature, index detail, sector Top tables, news catalysts, next-session plan, and risk sections. Missing data sources degrade by omitting or simplifying only the affected block.
+> - CN market review reports now use a post-market workstation layout with fixed market light, market temperature, index detail, sector Top tables, news catalysts, next-session plan, and risk sections. Missing data sources degrade by omitting or simplifying only the affected block. Market statistics / sector strength / limit-up ladder (industry + concept) and the market-emotion section prefer the KPL (openpapa/longhuvip) source with AkShare fallback; the news-catalyst push keeps only titles; when KPL is enabled, the report may also append 100-day-new-high sectors and big-loss-stock risk sections.
 > - Per-stock analysis, realtime quote priority, and sector rankings fallback remain unchanged.
 
 ---

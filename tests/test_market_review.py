@@ -151,5 +151,71 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         self.assertNotIn("US Market", result)
 
 
+class EmotionRiskSectionTest(unittest.TestCase):
+    def _make_analyzer(self):
+        from src.market_analyzer import MarketAnalyzer
+        return MarketAnalyzer(analyzer=MagicMock())
+
+    def test_emotion_section_builds(self):
+        from src.market_analyzer import MarketOverview
+        analyzer = self._make_analyzer()
+        overview = MarketOverview(
+            date="2026-08-13", limit_up_count=54, limit_down_count=2,
+            natural_zt=43, po_ban_rate=18.9655, zha_ban=11,
+        )
+        kpl = MagicMock()
+        kpl.get_market_emotion.return_value = {
+            "strong": 48, "limit_height": 3, "big_loss_count": 0, "day": "2026-08-13",
+            "yesterday_zt_pcp": 1.716, "yesterday_lb_pcp": 4.508, "yesterday_pb_pcp": -0.803,
+        }
+        with patch.object(analyzer, "_get_kpl_client", return_value=kpl):
+            section = analyzer._build_emotion_section(overview)
+        self.assertIn("情绪值 **48**/100", section)
+        self.assertIn("自然涨停43只", section)
+        self.assertIn("昨涨停今表现: +1.72%", section)
+
+    def test_emotion_section_empty_when_no_kpl(self):
+        from src.market_analyzer import MarketOverview
+        analyzer = self._make_analyzer()
+        with patch.object(analyzer, "_get_kpl_client", return_value=None):
+            section = analyzer._build_emotion_section(MarketOverview(date="2026-08-13"))
+        self.assertEqual(section, "")
+
+    def test_risk_section_and_injection(self):
+        analyzer = self._make_analyzer()
+        kpl = MagicMock()
+        kpl.get_new_high_sectors.return_value = [{"name": "芯片", "count": 76, "ratio": 18}]
+        kpl.get_big_loss_stocks.return_value = [
+            {"name": "顺威股份", "code": "002676", "change_pct": "-10.2%", "concept": "壳资源"}]
+        with patch.object(analyzer, "_get_kpl_client", return_value=kpl):
+            section = analyzer._build_risk_section()
+        self.assertIn("百日新高板块", section)
+        self.assertIn("顺威股份", section)
+        review = "### 五、消息催化\n\n1. 半导体走强\n\n### 六、风险提示\n\n内容"
+        injected = analyzer._inject_risk_section(review, section)
+        self.assertLess(injected.index("百日新高板块"), injected.index("### 六、风险提示"))
+
+
+class NewsBlockTrimTest(unittest.TestCase):
+    def _make_analyzer(self):
+        from unittest.mock import MagicMock
+        from src.market_analyzer import MarketAnalyzer
+        analyzer = MarketAnalyzer(analyzer=MagicMock())
+        analyzer._get_review_language = lambda: "zh"
+        return analyzer
+
+    def test_news_block_title_only(self):
+        analyzer = self._make_analyzer()
+        news = [
+            {"title": "半导体板块异动 个股大面积涨停", "snippet": "板块异动 | A股半导体板块早盘大涨 个股大面积涨停 凡本报注明来源...很长的摘要"},
+            {"title": "收评:沪指涨1.17%", "snippet": "中国经济网北京5月6日讯 A股三大指数今日集体上涨..."},
+        ]
+        block = analyzer._build_news_block(news)
+        self.assertIn("半导体板块异动 个股大面积涨停", block)
+        self.assertNotIn("板块异动 | A股半导体板块早盘大涨", block)  # snippet 不再出现
+        self.assertNotIn("中国经济网北京5月6日讯", block)
+        self.assertLessEqual(len(block), len("#### 近三日催化线索") + 200)
+
+
 if __name__ == "__main__":
     unittest.main()

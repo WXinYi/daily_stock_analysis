@@ -309,7 +309,7 @@ daily_stock_analysis/
 > - TickFlow 能力按套餐权限分层：有限权限套餐仍可使用主指数查询；支持 `CN_Equity_A` 标的池查询的套餐才会启用 TickFlow 市场统计。
 > - 官方 quickstart 已文档化 `quotes.get(universes=["CN_Equity_A"])`，但线上 smoke test 进一步确认：`TICKFLOW_API_KEY` 不等于一定具备该权限，且 `quotes.get(symbols=[...])` 单次存在标的数量限制。
 > - TickFlow 实际返回的 `change_pct` / `amplitude` 为比例值；系统已在接入层统一转换为百分比值，确保与现有数据源字段语义一致。
-> - A 股大盘复盘报告采用盘后工作台式结构：固定包含大盘红绿灯、盘面温度、指数明细、板块 Top 表、新闻催化、明日交易计划和风险提示；若部分数据源缺失，则保留可用区块并在对应位置降级展示。
+> - A 股大盘复盘报告采用盘后工作台式结构：固定包含大盘红绿灯、盘面温度、指数明细、板块 Top 表、新闻催化、明日交易计划和风险提示；若部分数据源缺失，则保留可用区块并在对应位置降级展示。大盘统计/板块强度/连板天梯（行业+概念）与市场情绪段优先走 KPL(开盘啦) 数据源，akshare/东财兜底；推送中的近三日催化线索仅保留标题；若配置 KPL，报告还可能追加百日新高板块与大幅回撤（大面股）风险段。
 > - 字段契约：
 >   - `fundamental_context.belong_boards` = 个股关联板块列表（当前仅 A 股写入；无数据时为 `[]`）；
 >   - `fundamental_context.boards.data` = `sector_rankings`（板块涨跌榜，结构 `{top, bottom}`）；

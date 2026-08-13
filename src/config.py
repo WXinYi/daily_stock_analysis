@@ -783,6 +783,14 @@ class Config:
     discord_max_words: int = 2000  # Discord 限制 2000 字，默认 2000 字
     wechat_msg_type: str = "markdown"  # 企业微信消息类型，默认 markdown 类型
 
+    # === KPL(开盘啦)数据源配置 ===
+    kpl_enabled: bool = True            # KPL 总开关，false 全走 akshare
+    kpl_timeout_seconds: int = 10       # 单接口超时
+    kpl_device_id: str = "d66474b3-fd78-3a95-a56d-76e29e765ea3"  # 文档公开演示 ID，可覆盖
+
+    # 钉钉单条消息字节上限（防客户端折叠，默认 2000B）
+    dingtalk_chunk_max_bytes: int = 2000
+
     # Markdown 转图片（Issue #289）：对不支持 Markdown 的渠道以图片发送
     markdown_to_image_channels: List[str] = field(default_factory=list)  # 逗号分隔：telegram,wechat,custom,email
     markdown_to_image_max_chars: int = 15000  # 超过此长度不转换，避免超大图片
@@ -1013,6 +1021,7 @@ class Config:
                 '163.com',         # 网易财经 (Akshare)
                 'tushare.pro',     # Tushare
                 'baostock.com',    # Baostock
+                'longhuvip.com',   # KPL(开盘啦)，大陆服务需直连
                 'sse.com.cn',      # 上交所
                 'szse.cn',         # 深交所
                 'csindex.com.cn',  # 中证指数
@@ -1557,6 +1566,19 @@ class Config:
             dingtalk_stream_enabled=os.getenv('DINGTALK_STREAM_ENABLED', 'false').lower() == 'true',
             dingtalk_webhook_keyword=os.getenv('DINGTALK_WEBHOOK_KEYWORD'),
             dingtalk_webhook_secret=os.getenv('DINGTALK_WEBHOOK_SECRET'),
+            kpl_enabled=os.getenv('KPL_ENABLED', 'true').lower() != 'false',
+            kpl_timeout_seconds=parse_env_int(
+                os.getenv('KPL_TIMEOUT_SECONDS'), 10,
+                field_name='KPL_TIMEOUT_SECONDS', minimum=1,
+            ),
+            kpl_device_id=(
+                os.getenv('KPL_DEVICE_ID')
+                or 'd66474b3-fd78-3a95-a56d-76e29e765ea3'
+            ).strip(),
+            dingtalk_chunk_max_bytes=parse_env_int(
+                os.getenv('DINGTALK_CHUNK_MAX_BYTES'), 2000,
+                field_name='DINGTALK_CHUNK_MAX_BYTES', minimum=100,
+            ),
             # 企业微信机器人
             wecom_corpid=os.getenv('WECOM_CORPID'),
             wecom_token=os.getenv('WECOM_TOKEN'),

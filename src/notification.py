@@ -386,7 +386,8 @@ class NotificationService(
         session_webhook = self._extract_dingtalk_session_webhook()
         if session_webhook:
             try:
-                if self._send_dingtalk_chunked(session_webhook, content, max_bytes=20000):
+                if self._send_dingtalk_chunked(session_webhook, content,
+                                               max_bytes=self._dingtalk_chunk_max_bytes):
                     logger.info("已通过钉钉会话（Stream）推送报告")
                     success = True
                 else:

@@ -930,10 +930,7 @@ def main() -> int:
             chan_report = chan_analyzer.run_chan_review()
             if chan_report:
                 if not args.no_notify:
-                    from src.formatters import chunk_content_by_max_bytes
-                    chunks = chunk_content_by_max_bytes(chan_report, 4096)
-                    for chunk in chunks:
-                        notifier.send(chunk)
+                    notifier.send(chan_report)
                     logger.info("缠论分析推送完成")
                 else:
                     logger.info("缠论分析完成（已跳过推送）")
@@ -1041,10 +1038,7 @@ def main() -> int:
             if report:
                 logger.info(f"飞龙选股报告生成，长度: {len(report)} 字符")
                 if not args.no_notify:
-                    from src.formatters import chunk_content_by_max_bytes
-                    chunks = chunk_content_by_max_bytes(report, 4096)
-                    for chunk in chunks:
-                        notifier.send(chunk)
+                    notifier.send(report)
                     logger.info("飞龙选股推送完成")
                 else:
                     logger.info("飞龙选股完成（已跳过推送）")
@@ -1144,10 +1138,7 @@ def main() -> int:
             if report:
                 logger.info(f"一阳指选股报告生成，长度: {len(report)} 字符")
                 if not args.no_notify:
-                    from src.formatters import chunk_content_by_max_bytes
-                    chunks = chunk_content_by_max_bytes(report, 4096)
-                    for chunk in chunks:
-                        notifier.send(chunk)
+                    notifier.send(report)
                     logger.info("一阳指选股推送完成")
                 else:
                     logger.info("一阳指选股完成（已跳过推送）")

@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] 明确 runtime 清理兼容边界：仅对托管 provider（`gemini`、`vertex_ai`、`anthropic`、`openai`、`deepseek`）触发保存前失效值清理，`cohere/*`、`google/*`、`xai/*` 直连值按 legacy 兼容路径保留，不做无提示迁移或覆写。
 - [改进] Web LLM 渠道编辑器补齐 MiniMax 与火山方舟预设，并新增常用服务商 `.env` 模板速查文档。
 - [修复] 将 MiniMax 预设调整为官方 OpenAI-compatible Base URL 和当前模型示例，并补充 MiniMax、火山方舟、LiteLLM 兼容来源与回退说明。
+- [新功能] 接入 KPL(开盘啦) 数据源，替代部分 akshare 大盘数据。
+- [改进] 大盘统计与概念榜改用 KPL 数据源，akshare 兜底
+- [新功能] 推送新增概念天梯/市场情绪/百日新高/大面股风险段落
+- [改进] 近三日催化线索只保留标题，缩减报告长度
+- [修复] 钉钉消息分片改为可配置大小(默认2000B)，解决消息折叠
 - [改进] Web LLM 渠道编辑器补齐 MiniMax 与火山方舟预设，并将常用服务商默认模型示例同步到 OpenAI、Claude、Gemini、Kimi、Qwen、GLM、MiniMax、豆包等官方当前推荐模型。
 - [修复] 将 MiniMax 预设调整为官方 OpenAI-compatible Base URL 和当前模型示例，并补充各 LLM 渠道最新模型来源、兼容边界与回退说明。
 - [修复] 移除截图识别对 Gemini 3 Vision 模型的过时降级逻辑，默认推断改用当前 Gemini 模型配置。

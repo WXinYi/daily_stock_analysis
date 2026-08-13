@@ -34,6 +34,7 @@ class CustomWebhookSender:
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
         self._dingtalk_webhook_keyword = getattr(config, 'dingtalk_webhook_keyword', None)
         self._dingtalk_webhook_secret = getattr(config, 'dingtalk_webhook_secret', None)
+        self._dingtalk_chunk_max_bytes = getattr(config, 'dingtalk_chunk_max_bytes', 2000)
  
     def send_to_custom(self, content: str) -> bool:
         """
@@ -75,12 +76,12 @@ class CustomWebhookSender:
                         if self._post_custom_webhook(url, templated_payload, timeout=30):
                             logger.info(f"自定义 Webhook {i+1}（钉钉模板）推送成功")
                             success_count += 1
-                        elif self._send_dingtalk_chunked(url, content, max_bytes=20000):
+                        elif self._send_dingtalk_chunked(url, content, max_bytes=self._dingtalk_chunk_max_bytes):
                             logger.info(f"自定义 Webhook {i+1}（钉钉模板失败，回退分批）推送成功")
                             success_count += 1
                         else:
                             logger.error(f"自定义 Webhook {i+1}（钉钉模板）推送失败")
-                    elif self._send_dingtalk_chunked(url, content, max_bytes=20000):
+                    elif self._send_dingtalk_chunked(url, content, max_bytes=self._dingtalk_chunk_max_bytes):
                         logger.info(f"自定义 Webhook {i+1}（钉钉）推送成功")
                         success_count += 1
                     else:
@@ -260,11 +261,11 @@ class CustomWebhookSender:
             return None
         return payload
     
-    def _send_dingtalk_chunked(self, url: str, content: str, max_bytes: int = 20000) -> bool:
+    def _send_dingtalk_chunked(self, url: str, content: str, max_bytes: int = 2000) -> bool:
         import time as _time
 
-        # 为 payload 开销预留空间，避免 body 超限
-        budget = max(1000, max_bytes - 1500)
+        # 为 keyword + 分页标记预留空间，控制单条 ≤ max_bytes
+        budget = max(1000, max_bytes - 400)
         chunks = chunk_content_by_max_bytes(content, budget)
         if not chunks:
             return False

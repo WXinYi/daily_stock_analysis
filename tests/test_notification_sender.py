@@ -702,5 +702,34 @@ class TestTelegramSender(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
 
 
+class TestDingTalkChunk(unittest.TestCase):
+    def _sender(self, chunk_bytes=2000):
+        cfg = _config(
+            dingtalk_chunk_max_bytes=chunk_bytes,
+            custom_webhook_urls=["https://oapi.dingtalk.com/robot/send?access_token=test"],
+            custom_webhook_body_template=None,
+        )
+        return CustomWebhookSender(cfg)
+
+    def test_send_to_custom_chunks_dingtalk_by_config(self):
+        # 走 send_to_custom 钉钉路径：无 body 模板时落到 _send_dingtalk_chunked，
+        # 分片大小必须取自 config 的 dingtalk_chunk_max_bytes(2000)，而非写死 20000。
+        sender = self._sender(chunk_bytes=2000)
+        content = "# 大盘复盘\n" + ("超长内容测试" * 400)  # ~2400B
+        with mock.patch.object(sender, "_post_custom_webhook", return_value=True) as post:
+            sender.send_to_custom(content)
+        self.assertGreater(len(post.call_args_list), 1)  # 拆成多条
+        for call in post.call_args_list:
+            payload = call[0][1]
+            text = payload["markdown"]["text"]
+            self.assertLessEqual(len(text.encode("utf-8")), 2400)  # 单条 ≤ 2KB + 页标记/keyword 余量
+
+    def test_single_message_when_small(self):
+        sender = self._sender(chunk_bytes=2000)
+        with mock.patch.object(sender, "_post_custom_webhook", return_value=True) as post:
+            sender.send_to_custom("小消息")
+        self.assertEqual(len(post.call_args_list), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -86,6 +86,10 @@ class MarketOverview:
     limit_up_count: int = 0             # 涨停家数
     limit_down_count: int = 0           # 跌停家数
     total_amount: float = 0.0           # 两市成交额（亿元）
+    # KPL 新增（无 akshare 等价物，失败为 None）
+    natural_zt: Optional[int] = None
+    po_ban_rate: Optional[float] = None
+    zha_ban: Optional[int] = None
     # north_flow: float = 0.0           # 北向资金净流入（亿元）- 已废弃，接口不可用
     
     # 板块涨幅榜
@@ -101,6 +105,7 @@ class LimitUpStock:
     consecutive: int = 1           # 连板数（1=首板, 2=2连板...）
     industry: str = ""             # 所属行业
     first_time: str = ""           # 首次封板时间
+    limit_reason: str = ""         # 涨停原因（KPL 开盘啦原因）
 
 
 @dataclass
@@ -146,6 +151,15 @@ class MarketAnalyzer:
         self.region = region if region in ("cn", "us", "hk") else "cn"
         self.profile: MarketProfile = get_profile(self.region)
         self.strategy = get_market_strategy_blueprint(self.region)
+
+    def _get_kpl_client(self):
+        """懒加载 KPLClient（单实例）；KPL 关闭时返回 None。"""
+        if not getattr(self, "_kpl_client", None):
+            from data_provider.kpl_client import KPLClient
+            self._kpl_client = KPLClient(self.config)
+        if not self._kpl_client.available:
+            return None
+        return self._kpl_client
 
     def _get_review_language(self) -> str:
         configured = normalize_report_language(
@@ -404,12 +418,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return indices
 
     def _get_market_statistics(self, overview: MarketOverview):
-        """获取市场涨跌统计"""
+        """获取市场涨跌统计（KPL 优先，失败回退 data_manager/akshare）。"""
         try:
             logger.info("[大盘] 获取市场涨跌统计...")
-
-            stats = self.data_manager.get_market_stats()
-
+            stats = self._get_kpl_market_stats()
+            if not stats:
+                stats = self.data_manager.get_market_stats()
             if stats:
                 overview.up_count = stats.get('up_count', 0)
                 overview.down_count = stats.get('down_count', 0)
@@ -417,13 +431,26 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 overview.limit_up_count = stats.get('limit_up_count', 0)
                 overview.limit_down_count = stats.get('limit_down_count', 0)
                 overview.total_amount = stats.get('total_amount', 0.0)
-
-                logger.info(f"[大盘] 涨:{overview.up_count} 跌:{overview.down_count} 平:{overview.flat_count} "
-                          f"涨停:{overview.limit_up_count} 跌停:{overview.limit_down_count} "
-                          f"成交额:{overview.total_amount:.0f}亿")
-
+                # KPL 新增字段透传到 overview 供新段落使用
+                overview.natural_zt = stats.get('natural_zt')
+                overview.po_ban_rate = stats.get('po_ban_rate')
+                overview.zha_ban = stats.get('zha_ban')
+                logger.info(f"[大盘] 涨:{overview.up_count} 跌:{overview.down_count} "
+                            f"涨停:{overview.limit_up_count} 跌停:{overview.limit_down_count} "
+                            f"成交额:{overview.total_amount:.0f}亿")
         except Exception as e:
             logger.error(f"[大盘] 获取涨跌统计失败: {e}")
+
+    def _get_kpl_market_stats(self) -> Optional[Dict[str, Any]]:
+        """KPL 大盘统计；KPL 不可用/失败返回 None。"""
+        kpl = self._get_kpl_client()
+        if kpl is None:
+            return None
+        try:
+            return kpl.get_market_stats()
+        except Exception as e:
+            logger.warning(f"[KPL] 大盘统计失败: {e}")
+            return None
 
     @staticmethod
     def _fetch_concept_rankings() -> List[Tuple[str, float]]:
@@ -458,7 +485,18 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return results
 
     def _get_sector_rankings(self, overview: MarketOverview):
-        """获取概念涨跌榜（复用 _fetch_concept_rankings）"""
+        """获取概念涨跌榜（KPL RealRankingInfo 优先，失败回退同花顺）。"""
+        try:
+            kpl_sectors = self._get_kpl_sector_rankings()
+            if kpl_sectors:
+                overview.top_sectors = kpl_sectors[:5]
+                overview.bottom_sectors = kpl_sectors[-5:][::-1]
+                logger.info(f"[大盘] 概念涨跌榜(KPL): "
+                            f"领涨 {[s['name'] for s in overview.top_sectors]}")
+                return
+        except Exception as e:
+            logger.warning(f"[大盘] KPL 概念涨跌榜失败: {e}")
+
         try:
             logger.info("[大盘] 获取概念涨跌榜(同花顺)...")
             results = self._fetch_concept_rankings()
@@ -466,7 +504,6 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 overview.top_sectors = [{'name': n, 'change_pct': c} for n, c in results[:5]]
                 overview.bottom_sectors = [{'name': n, 'change_pct': c} for n, c in results[-5:][::-1]]
                 logger.info(f"[大盘] 领涨概念: {[s['name'] for s in overview.top_sectors]}")
-                logger.info(f"[大盘] 领跌概念: {[s['name'] for s in overview.bottom_sectors]}")
                 return
         except Exception as e:
             logger.warning(f"[大盘] 概念涨跌榜失败: {e}，降级行业排行")
@@ -479,6 +516,16 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 overview.bottom_sectors = bottom_sectors
         except Exception:
             pass
+
+    def _get_kpl_sector_rankings(self) -> Optional[List[Dict[str, Any]]]:
+        kpl = self._get_kpl_client()
+        if kpl is None:
+            return None
+        try:
+            return kpl.get_sector_rankings()
+        except Exception as e:
+            logger.warning(f"[KPL] 板块强度榜失败: {e}")
+            return None
     
     # def _get_north_flow(self, overview: MarketOverview):
     #     """获取北向资金流入"""
@@ -502,78 +549,112 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     #         logger.warning(f"[大盘] 获取北向资金失败: {e}")
 
     def _build_limit_up_ladder(self) -> Optional[LimitUpLadder]:
-        """获取涨停池数据并构建连板天梯（行业+概念双维度）。"""
-        try:
-            logger.info("[大盘] 获取涨停池连板数据...")
+        """获取涨停池并构建连板天梯：KPL 复盘优先，akshare 兜底。"""
+        from collections import Counter
 
-            # 从 AkShare 获取涨停池
-            from data_provider.akshare_fetcher import AkshareFetcher
-            akshare = AkshareFetcher()
-            pool = akshare.get_limit_up_pool()
+        try:
+            # ---- KPL 涨停复盘（基础统计 + 概念天梯）----
+            kpl_pool = None
+            kpl_concept_ladders = []
+            kpl_client = self._get_kpl_client()
+            if kpl_client is not None:
+                try:
+                    kpl_review = kpl_client.get_limit_up_review()
+                    if kpl_review and kpl_review["boards"]:
+                        kpl_pool = []
+                        for board in kpl_review["boards"]:
+                            for byb in board["stocks_by_board"].values():
+                                for st in byb:
+                                    kpl_pool.append(LimitUpStock(
+                                        code=st["code"], name=st["name"],
+                                        consecutive=st["consecutive"],
+                                        industry=st["board"],
+                                        first_time=st["first_time"],
+                                        limit_reason=st["limit_reason"],
+                                    ))
+                        # 概念天梯：将 KPL 的 dict 股票转成 LimitUpStock，渲染层统一用 s.name
+                        kpl_concept_ladders = []
+                        for b in kpl_review["boards"][:5]:
+                            by_board = {}
+                            for board_num, stock_list in b["stocks_by_board"].items():
+                                by_board[board_num] = [
+                                    LimitUpStock(
+                                        code=st["code"], name=st["name"],
+                                        consecutive=st["consecutive"],
+                                        industry=st["board"],
+                                        first_time=st["first_time"],
+                                        limit_reason=st["limit_reason"],
+                                    ) for st in stock_list
+                                ]
+                            kpl_concept_ladders.append({
+                                'sector': b['sector'],
+                                'total': b['total'],
+                                'stocks_by_board': by_board,
+                            })
+                        logger.info(f"[连板] KPL 复盘成功: {len(kpl_pool)}只, "
+                                    f"{len(kpl_concept_ladders)}个概念板块")
+                except Exception as e:
+                    logger.warning(f"[连板] KPL 复盘失败: {e}")
+
+            # ---- akshare 涨停池（基础统计回退 + 行业天梯）----
+            pool = kpl_pool
+            industry_ladders = []
+            try:
+                from data_provider.akshare_fetcher import AkshareFetcher
+                akshare = AkshareFetcher()
+                ak_pool = akshare.get_limit_up_pool()
+                if ak_pool:
+                    ak_stocks = [
+                        LimitUpStock(
+                            code=str(item.get('code', '')),
+                            name=str(item.get('name', '')),
+                            consecutive=int(item.get('consecutive', 1)),
+                            industry=str(item.get('industry', '')),
+                            first_time=str(item.get('first_time', '')),
+                            limit_reason=str(item.get('limit_reason', '')),
+                        )
+                        for item in ak_pool
+                    ]
+                    # 行业天梯始终以 akshare 东财行业为准（KPL 无行业分类）
+                    industry_map = {}
+                    for s in ak_stocks:
+                        ind = s.industry or "其他"
+                        industry_map.setdefault(ind, {}).setdefault(s.consecutive, []).append(s)
+                    for sector, by_board in industry_map.items():
+                        industry_ladders.append({
+                            'sector': sector,
+                            'total': sum(len(v) for v in by_board.values()),
+                            'stocks_by_board': dict(sorted(by_board.items(), key=lambda x: x[0], reverse=True)),
+                        })
+                    industry_ladders.sort(key=lambda x: x['total'], reverse=True)
+                    industry_ladders = industry_ladders[:5]
+                    if pool is None:
+                        pool = ak_stocks
+                        logger.info("[连板] 使用 akshare 涨停池（KPL 不可用）")
+            except Exception as e:
+                logger.warning(f"[连板] akshare 涨停池失败: {e}")
 
             if pool is None:
-                logger.warning("[连板] 涨停池接口失败")
+                logger.warning("[连板] 涨停池接口全部失败")
                 return None
             if not pool:
                 logger.info("[连板] 今日无涨停数据")
                 return LimitUpLadder(total=0)
 
-            # 构建股票列表
-            stocks = []
-            for item in pool:
-                stock = LimitUpStock(
-                    code=str(item.get('code', '')),
-                    name=str(item.get('name', '')),
-                    consecutive=int(item.get('consecutive', 1)),
-                    industry=str(item.get('industry', '')),
-                    first_time=str(item.get('first_time', '')),
-                )
-                stocks.append(stock)
-
-            # 连板梯度统计
-            from collections import Counter
-            consec_dist = Counter(s.consecutive for s in stocks)
-            consecutive_stats = {}
-            for k in sorted(consec_dist):
-                consecutive_stats[k] = consec_dist[k]
-
-            # 高度板龙头（3连板及以上，按连板数降序）
+            consec_dist = Counter(s.consecutive for s in pool)
+            consecutive_stats = {k: consec_dist[k] for k in sorted(consec_dist)}
             height_leaders = sorted(
-                [s for s in stocks if s.consecutive >= 3],
+                [s for s in pool if s.consecutive >= 3],
                 key=lambda s: s.consecutive, reverse=True
             )[:10]
 
-            # ---- 行业天梯 ----
-            industry_map = {}  # {sector_name: {consecutive: [LimitUpStock]}}
-            for s in stocks:
-                ind = s.industry or "其他"
-                if ind not in industry_map:
-                    industry_map[ind] = {}
-                industry_map[ind].setdefault(s.consecutive, []).append(s)
-
-            industry_ladders = []
-            for sector, by_board in industry_map.items():
-                total_in_sector = sum(len(v) for v in by_board.values())
-                industry_ladders.append({
-                    'sector': sector,
-                    'total': total_in_sector,
-                    'stocks_by_board': dict(sorted(by_board.items(), key=lambda x: x[0], reverse=True)),
-                })
-            # 按涨停数量降序，取 Top 5
-            industry_ladders.sort(key=lambda x: x['total'], reverse=True)
-            industry_ladders = industry_ladders[:5]
-
-            result = LimitUpLadder(
-                total=len(stocks),
+            return LimitUpLadder(
+                total=len(pool),
                 consecutive_stats=consecutive_stats,
                 height_leaders=height_leaders,
                 industry_ladders=industry_ladders,
-                concept_ladders=[],
+                concept_ladders=kpl_concept_ladders,
             )
-            logger.info(f"[连板] 天梯构建完成: {len(stocks)}只, {len(height_leaders)}只高度板, "
-                       f"{len(industry_ladders)}个行业板块")
-            return result
-
         except Exception as e:
             logger.warning(f"[连板] 构建天梯失败: {e}")
             return None
@@ -633,10 +714,98 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                         names += f"等{len(stock_list)}只"
                     lines.append(f"  - {label}: {names}\n")
 
+        # ---- 概念天梯（KPL 复盘，含涨停原因）----
+        if ladeder.concept_ladders:
+            lines.append("\n### 连板天梯 · 概念板块\n")
+            for ladder in ladeder.concept_ladders:
+                lines.append(f"**{ladder['sector']}**（涨停{ladder['total']}只）\n")
+                for board, stock_list in sorted(ladder['stocks_by_board'].items(), key=lambda x: x[0], reverse=True):
+                    if board == 1:
+                        label = "首板"
+                    else:
+                        label = f"{board}板"
+                    names = "、".join(s.name for s in stock_list[:5])
+                    if len(stock_list) > 5:
+                        names += f"等{len(stock_list)}只"
+                    lines.append(f"  - {label}: {names}\n")
+
         return "\n".join(lines) + "\n"
 
-    @staticmethod
-    def _build_limit_up_prompt_block(ladder: Optional[LimitUpLadder]) -> str:
+    def _build_emotion_section(self, overview: MarketOverview) -> str:
+        """KPL 市场情绪段：复用大盘统计已取的自然涨停/炸板/破板率 + 情绪值/连板高度/昨表现。
+
+        任一部分失败则该部分省略；两部分都不可用时返回空串。
+        """
+        kpl = self._get_kpl_client()
+        if kpl is None:
+            return ""
+        try:
+            lines = ["\n### 市场情绪\n"]
+            # 涨停/跌停/自然涨停/炸板/破板率（复用 _get_market_statistics 已取 KPL 数据）
+            if overview.natural_zt is not None:
+                zbl = f"{overview.po_ban_rate:.2f}%" if overview.po_ban_rate is not None else "--"
+                lines.append(f"- 涨停{overview.limit_up_count}只 跌停{overview.limit_down_count}只，"
+                             f"自然涨停{overview.natural_zt}只，炸板{overview.zha_ban}只，破板率 {zbl}")
+            # 情绪值 + 昨涨停/连板/破板今表现（ChangeStatistics + GetPlate_Info_QJ）
+            emo = kpl.get_market_emotion()
+            if emo:
+                lines.append(f"- 情绪值 **{emo['strong']}**/100，连板高度 **{emo['limit_height']}** 板，"
+                             f"大幅回撤 **{emo['big_loss_count']}** 只")
+                tip = ("情绪值过高(>75)短期有释放亏钱效应风险；过低(<25)短线有反弹回暖需求。"
+                       if emo["strong"] > 75 or emo["strong"] < 25 else "")
+                if tip:
+                    lines.append(f"- ⚠️ {tip}")
+                pcp = [emo.get("yesterday_zt_pcp"), emo.get("yesterday_lb_pcp"), emo.get("yesterday_pb_pcp")]
+                labels = ["昨涨停今表现", "昨连板今表现", "昨破板今表现"]
+                parts = [f"{l}: {p:+.2f}%" if p is not None else f"{l}: --" for l, p in zip(labels, pcp)]
+                lines.append("- " + " ｜ ".join(parts))
+            if len(lines) == 1:  # 两部分都无数据
+                return ""
+            return "\n".join(lines) + "\n"
+        except Exception as e:
+            logger.warning(f"[大盘] 情绪段失败: {e}")
+            return ""
+
+    def _build_risk_section(self) -> str:
+        """百日新高板块 + 大面股风险段（失败整段省略）。"""
+        kpl = self._get_kpl_client()
+        if kpl is None:
+            return ""
+        try:
+            from datetime import datetime as _dt
+            today = _dt.now().strftime("%Y-%m-%d")
+            lines: List[str] = []
+            highs = kpl.get_new_high_sectors()
+            if highs:
+                lines.append("\n### 百日新高板块\n")
+                for h in highs:
+                    lines.append(f"- **{h['name']}**：新高 {h['count']} 家（{h['ratio']}%）")
+            losses = kpl.get_big_loss_stocks(today)
+            if losses:
+                lines.append("\n### 大面股风险\n")
+                for lo in losses:
+                    concept = f"（{lo['concept']}）" if lo["concept"] else ""
+                    lines.append(f"- {lo['name']}（{lo['code']}）{lo['change_pct']}{concept}")
+            if not lines:
+                return ""
+            return "\n".join(lines) + "\n"
+        except Exception as e:
+            logger.warning(f"[大盘] 新高/大面股段失败: {e}")
+            return ""
+
+    def _inject_risk_section(self, review: str, risk_section: str) -> str:
+        """将新高/大面股段注入到五、消息催化之后；空段直接返回原文。"""
+        if not risk_section.strip():
+            return review
+        import re
+        pattern = r"(### 五、消息催化.*?)(?=\n### \S|\Z)"
+        match = re.search(pattern, review, re.DOTALL)
+        if not match:
+            return review + risk_section
+        idx = match.end()
+        return review[:idx] + "\n" + risk_section + review[idx:]
+
+    def _build_limit_up_prompt_block(self, ladder: Optional[LimitUpLadder]) -> str:
         """构建 Prompt 中的连板数据块（供 LLM 分析参考）。"""
         if ladder is None:
             return ""
@@ -660,6 +829,26 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 top_board = max(il['stocks_by_board'].keys())
                 ind_parts.append(f"{il['sector']}({il['total']}只/最高{top_board}板)")
             lines.append("- 涨停集中行业: " + "；".join(ind_parts))
+        # 概念天梯（KPL 题材）——注意：本方法参数名是 ladder（_format_limit_up_section 才是 ladeder）
+        if ladder.concept_ladders:
+            concept_parts = []
+            for cl in ladder.concept_ladders[:3]:
+                top_board = max(cl['stocks_by_board'].keys())
+                concept_parts.append(f"{cl['sector']}({cl['total']}只/最高{top_board}板)")
+            lines.append("- 涨停集中概念: " + "；".join(concept_parts))
+            # 高度板涨停原因
+            leader_ids = [s.code for s in (ladder.height_leaders or [])[:3]]
+            if leader_ids:
+                kpl = self._get_kpl_client()
+                if kpl is not None:
+                    try:
+                        reasons = kpl.get_limit_up_reasons(leader_ids)
+                        for s in ladder.height_leaders[:3]:
+                            reason = reasons.get(s.code) or getattr(s, "limit_reason", "")
+                            if reason:
+                                lines.append(f"- {s.name}({s.consecutive}板)涨停原因: {reason[:80]}")
+                    except Exception:
+                        pass
         lines.append("")
         return "\n".join(lines) + "\n"
 
@@ -736,13 +925,14 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             logger.warning("[大盘] AI分析器未配置或不可用，使用模板生成报告")
             return self._generate_template_review(overview, news)
 
-        # 获取连板天梯数据
+        # 获取连板天梯数据 + 情绪段（情绪独立抓取，天梯整体失败时仍能注入）
         limit_up_ladder = None
         limit_up_section = ""
         try:
             limit_up_ladder = self._build_limit_up_ladder()
             if limit_up_ladder is not None:
                 limit_up_section = self._format_limit_up_section(limit_up_ladder)
+            limit_up_section += self._build_emotion_section(overview)
         except Exception as e:
             logger.warning(f"[大盘] 连板数据获取失败，跳过: {e}")
 
@@ -760,6 +950,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             # 注入连板天梯到资金与情绪段之后
             if limit_up_section:
                 review = self._inject_limit_up_section(review, limit_up_section)
+            # 注入百日新高/大面股风险段到五、消息催化之后
+            risk_section = self._build_risk_section()
+            if risk_section:
+                review = self._inject_risk_section(review, risk_section)
             return review
         else:
             logger.warning("[大盘] 大模型返回为空，使用模板报告")
@@ -1019,7 +1213,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return "\n".join(lines)
 
     def _build_news_block(self, news: List) -> str:
-        """Build a compact news catalyst list (no table — wraps naturally in DingTalk)."""
+        """Build a compact news catalyst list (title-only, no snippet)."""
         if not news:
             return ""
         if self._get_review_language() == "en":
@@ -1030,13 +1224,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         for idx, item in enumerate(news[:5], 1):
             if hasattr(item, "title"):
                 title = getattr(item, "title", "") or "-"
-                snippet = getattr(item, "snippet", "") or ""
             else:
                 title = item.get("title", "-") or "-"
-                snippet = item.get("snippet", "") or ""
-            title = str(title).strip()[:60]
-            snippet = str(snippet).strip().replace("\n", " ")[:120] or "-"
-            lines.append(f"{idx}. **{title}** — {snippet}")
+            title = str(title).strip().replace("\n", " ")[:60] or "-"
+            lines.append(f"{idx}. **{title}**")
         return "\n".join(lines)
 
     @staticmethod

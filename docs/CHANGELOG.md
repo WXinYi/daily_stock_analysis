@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [改进] 补齐 LLM provider channel 在 GitHub Actions 中的显式映射，并同步 `.env` 示例与配置文档。
 - [改进] Web LLM 渠道编辑器展示 provider 能力标签、官方来源链接和配置注意事项提示；这些标签仅用于配置参考，不代表运行时能力已验证通过。
 - [新功能] 支持 `ANSPIRE_API_KEYS` 默认接入 Anspire OpenAI-compatible 大模型网关，并在 LLM 渠道编辑器补充 Anspire Open 预设。
+- [修复] 早盘缠论分析改用 `deepseek-v4-flash` 模型并启用 bounded thinking（`budget_tokens=4096`），缠论调用 `max_tokens` 提升至 16384，避免思考耗尽 token 预算导致正文为空、推送"缠论分析生成失败"。
 
 ## [3.14.2] - 2026-04-30
 

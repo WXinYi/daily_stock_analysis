@@ -1900,7 +1900,10 @@ Market conditions can change quickly. The data above is for reference only and d
             return "AI 分析器未配置，无法生成缠论报告。"
 
         logger.info("[缠论] 调用大模型生成报告...")
-        review = self.analyzer.generate_text(prompt, max_tokens=4096, temperature=0.3)
+        # max_tokens 需足够大：deepseek v4 思考预算 budget_tokens(4096) 是软上限，
+        # 实测部分请求会无视预算把思考冲到 ~8192 token，若 max_tokens 偏小思考耗尽则正文为空。
+        # 16384 保证即便思考冲破预算，仍为正文留出空间（双保险）。
+        review = self.analyzer.generate_text(prompt, max_tokens=16384, temperature=0.3)
         if review:
             logger.info("[缠论] 报告生成成功，长度: %d 字符", len(review))
             logger.info("========== 缠论分析完成 ==========")

@@ -75,6 +75,16 @@ _OPT_IN_THINKING_MODELS: Dict[str, dict] = {
     "deepseek-chat": {"thinking": {"type": "enabled"}},
 }
 
+# DeepSeek v4 models reason by default; on complex prompts the reasoning can
+# consume the entire max_tokens budget and leave `content` empty (=> "LLM
+# returned empty response"). Cap the thinking with budget_tokens so the answer
+# always materializes. budget_tokens is a soft cap (~1.4x observed), so keep
+# max_tokens generous (>=8192) on the calling side.
+_BOUNDED_THINKING_MODELS: Dict[str, dict] = {
+    "deepseek-v4-flash": {"thinking": {"type": "enabled", "budget_tokens": 4096}},
+    "deepseek-v4-pro": {"thinking": {"type": "enabled", "budget_tokens": 4096}},
+}
+
 # Custom model pricing for models not in LiteLLM's built-in price list
 # Official MiniMax pricing: https://platform.minimax.io/docs/guides/pricing-paygo
 # - MiniMax-M2.7 / M2.5: $0.3/M input tokens, $1.2/M output tokens
@@ -131,12 +141,18 @@ def get_thinking_extra_body(model: str) -> Optional[dict]:
       These models automatically return reasoning_content in API responses; sending
       extra_body would cause 400 because the API already enables thinking by default.
       Return None to avoid duplicate activation.
+    - Bounded-thinking models (_BOUNDED_THINKING_MODELS: deepseek-v4-flash/pro):
+      These reason by default and can exhaust the output budget; return a payload
+      that keeps thinking enabled but caps it with budget_tokens.
     - Opt-in models (_OPT_IN_THINKING_MODELS: deepseek-chat): Return the activation
       payload to explicitly enable thinking mode.
     - All other models: Return None (no thinking mode).
     """
     if _model_matches(model, _AUTO_THINKING_MODELS):
         return None
+    bounded = _get_opt_in_payload(model, _BOUNDED_THINKING_MODELS)
+    if bounded is not None:
+        return bounded
     return _get_opt_in_payload(model, _OPT_IN_THINKING_MODELS)
 
 
